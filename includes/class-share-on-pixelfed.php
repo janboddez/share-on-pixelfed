@@ -2,15 +2,15 @@
 /**
  * Main plugin class.
  *
- * @package Share_On_Mastodon
+ * @package Share_On_Pixelfed
  */
 
-namespace Share_On_Mastodon;
+namespace Share_On_Pixelfed;
 
 /**
  * Main plugin class.
  */
-class Share_On_Mastodon {
+class Share_On_Pixelfed {
 	/**
 	 * Constructor.
 	 *
@@ -32,6 +32,6 @@ class Share_On_Mastodon {
 	 * @since 0.1.0
 	 */
 	public function load_textdomain() {
-		load_plugin_textdomain( 'share-on-mastodon', false, basename( dirname( dirname( __FILE__ ) ) ) . '/languages' );
+		load_plugin_textdomain( 'share-on-pixelfed', false, basename( dirname( dirname( __FILE__ ) ) ) . '/languages' );
 	}
 }

@@ -1,11 +1,11 @@
 <?php
 /**
- * Handles posting to Mastodon and the like.
+ * Handles posting to Pixelfed and the like.
  *
- * @package Share_On_Mastodon
+ * @package Share_On_Pixelfed
  */
 
-namespace Share_On_Mastodon;
+namespace Share_On_Pixelfed;
 
 /**
  * Post handler class.
@@ -27,7 +27,7 @@ class Post_Handler {
 	public function __construct() {
 		// Fetch settings from database. Fall back onto an empty array if none
 		// exist.
-		$this->options = get_option( 'share_on_mastodon_settings', array() );
+		$this->options = get_option( 'share_on_pixelfed_settings', array() );
 
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 
@@ -47,8 +47,8 @@ class Post_Handler {
 		}
 
 		add_meta_box(
-			'share-on-mastodon',
-			__( 'Share on Mastodon', 'share-on-mastodon' ),
+			'share-on-pixelfed',
+			__( 'Share on Pixelfed', 'share-on-pixelfed' ),
 			array( $this, 'render_meta_box' ),
 			(array) $this->options['post_types'],
 			'side',
@@ -64,10 +64,10 @@ class Post_Handler {
 	 */
 	public function render_meta_box( $post ) {
 		?>
-			<?php wp_nonce_field( basename( __FILE__ ), 'share_on_mastodon_nonce' ); ?>
+			<?php wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' ); ?>
 			<label>
-				<input type="checkbox" name="share_on_mastodon" value="1" <?php checked( in_array( get_post_meta( $post->ID, '_share_on_mastodon', true ), array( '', '1' ), true ) ); ?>>
-				<?php esc_html_e( 'Share on Mastodon', 'share-on-mastodon' ); ?>
+				<input type="checkbox" name="share_on_pixelfed" value="1" <?php checked( in_array( get_post_meta( $post->ID, '_share_on_pixelfed', true ), array( '', '1' ), true ) ); ?>>
+				<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
 			</label>
 		<?php
 	}
@@ -90,7 +90,7 @@ class Post_Handler {
 			return;
 		}
 
-		if ( ! isset( $_POST['share_on_mastodon_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['share_on_mastodon_nonce'] ), basename( __FILE__ ) ) ) {
+		if ( ! isset( $_POST['share_on_pixelfed_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['share_on_pixelfed_nonce'] ), basename( __FILE__ ) ) ) {
 			// Nonce missing or invalid.
 			return;
 		}
@@ -100,16 +100,16 @@ class Post_Handler {
 			return;
 		}
 
-		if ( isset( $_POST['share_on_mastodon'] ) && ! post_password_required( $post ) ) {
+		if ( isset( $_POST['share_on_pixelfed'] ) && ! post_password_required( $post ) ) {
 			// If sharing enabled and post not password-protected.
-			update_post_meta( $post->ID, '_share_on_mastodon', '1' );
+			update_post_meta( $post->ID, '_share_on_pixelfed', '1' );
 		} else {
-			update_post_meta( $post->ID, '_share_on_mastodon', '0' );
+			update_post_meta( $post->ID, '_share_on_pixelfed', '0' );
 		}
 	}
 
 	/**
-	 * Shares a post on Mastodon.
+	 * Shares a post on Pixelfed.
 	 *
 	 * @since 0.1.0
 	 * @param string  $new_status New post status.
@@ -122,15 +122,20 @@ class Post_Handler {
 			return;
 		}
 
-		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_mastodon', true ) ? true : false );
+		if ( ! has_post_thumbnail( $post->ID ) ) {
+			// No feature image.
+			return;
+		}
 
-		if ( ! apply_filters( 'share_on_mastodon_enabled', $is_enabled ) ) {
+		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ? true : false );
+
+		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
 			// Disabled for this post.
 			return;
 		}
 
-		if ( '' !== get_post_meta( $post->ID, '_share_on_mastodon_url', true ) ) {
-			// Prevent duplicate toots.
+		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
+			// Prevent duplicate statuses.
 			return;
 		}
 
@@ -149,42 +154,43 @@ class Post_Handler {
 			return;
 		}
 
-		if ( empty( $this->options['mastodon_host'] ) ) {
+		if ( empty( $this->options['pixelfed_host'] ) ) {
 			return;
 		}
 
-		if ( ! wp_http_validate_url( $this->options['mastodon_host'] ) ) {
+		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
 			return;
 		}
 
-		if ( empty( $this->options['mastodon_access_token'] ) ) {
+		if ( empty( $this->options['pixelfed_access_token'] ) ) {
 			return;
 		}
 
 		$status = wp_strip_all_tags( get_the_title( $post->ID ) ) . ' ' . esc_url_raw( get_permalink( $post->ID ) );
-		$status = apply_filters( 'share_on_mastodon_status', $status, $post );
+		$status = apply_filters( 'share_on_pixelfed_status', $status, $post );
 
 		// Encode, build query string.
 		$query_string = http_build_query(
-			array( 'status' => $status )
+			array(
+				'status'     => $status,
+				'visibility' => 'public', // Required (?) by Pixelfed.
+			)
 		);
 
-		if ( has_post_thumbnail( $post->ID ) && apply_filters( 'share_on_mastodon_featured_image', true ) ) {
-			// Upload the featured image.
-			$media_id = $this->upload_thumbnail( $post->ID );
+		// Upload the featured image.
+		$media_id = $this->upload_thumbnail( $post->ID );
 
-			if ( ! empty( $media_id ) ) {
-				// Handle after `http_build_query()`, as apparently Mastodon
-				// doesn't like numbers for query string array keys.
-				$query_string .= '&media_ids[]=' . rawurlencode( $media_id );
-			}
+		if ( ! empty( $media_id ) ) {
+			// Handle after `http_build_query()`, as apparently the API
+			// doesn't like numbers for query string array keys.
+			$query_string .= '&media_ids[]=' . rawurlencode( $media_id );
 		}
 
 		$response = wp_remote_post(
-			esc_url_raw( $this->options['mastodon_host'] . '/api/v1/statuses' ),
+			esc_url_raw( $this->options['pixelfed_host'] . '/api/v1/statuses' ),
 			array(
 				'headers'     => array(
-					'Authorization' => 'Bearer ' . $this->options['mastodon_access_token'],
+					'Authorization' => 'Bearer ' . $this->options['pixelfed_access_token'],
 				),
 				// Prevent WordPress from applying `http_build_query()`, for the
 				// same reason.
@@ -204,7 +210,7 @@ class Post_Handler {
 		$status = @json_decode( $response['body'] );
 
 		if ( ! empty( $status->url ) && post_type_supports( $post->post_type, 'custom-fields' ) ) {
-			update_post_meta( $post->ID, '_share_on_mastodon_url', $status->url );
+			update_post_meta( $post->ID, '_share_on_pixelfed_url', $status->url );
 		} else {
 			// Provided debugging's enabled, let's store the (somehow faulty)
 			// response.
@@ -240,10 +246,10 @@ class Post_Handler {
 		$body .= '--' . $boundary . '--';
 
 		$response = wp_remote_post(
-			esc_url_raw( $this->options['mastodon_host'] . '/api/v1/media' ),
+			esc_url_raw( $this->options['pixelfed_host'] . '/api/v1/media' ),
 			array(
 				'headers'     => array(
-					'Authorization' => 'Bearer ' . $this->options['mastodon_access_token'],
+					'Authorization' => 'Bearer ' . $this->options['pixelfed_access_token'],
 					'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
 				),
 				'data_format' => 'body',
