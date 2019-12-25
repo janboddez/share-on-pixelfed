@@ -127,7 +127,7 @@ class Post_Handler {
 			return;
 		}
 
-		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ? true : false );
+		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
 
 		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
 			// Disabled for this post.
