@@ -19,11 +19,8 @@ add_filter( 'share_on_pixelfed_status', function( $status, $post ) {
 }, 10, 2 );
 ```
 
-## Media
-Media other than Featured Images are not supported at the moment.
-
-## Privacy
+## Post Privacy
 Currently, all statuses sent via this plugin are **public**. Unlisted or followers-only statuses may become an option later on.
 
 ## Gutenberg
-This plugin now uses WordPress' Meta Box API—supported by Gutenberg—to store per-post sharing settings, which makes it 100% compatible with the new block editor.
+This plugin uses WordPress' Meta Box API—supported by Gutenberg—to store per-post sharing settings, which makes it 100% compatible with the new block editor.
