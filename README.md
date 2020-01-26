@@ -1,6 +1,8 @@
 # Share on Pixelfed
 Automatically share WordPress (image) posts on [Pixelfed](https://pixelfed.org/). You choose which Post Types are shared—though sharing can still be disabled on a per-post basis.
 
+This plugin shares some 75%—not an exact number—of its code with [Share on Mastodon](https://github.com/janboddez/share-on-mastodon), as both use the "Mastodon v1 API" (which Pixelfed supports, too).
+
 By default, shared statuses look something like:
 ```
 My Awesome Post Title https://url.to/original-post/
