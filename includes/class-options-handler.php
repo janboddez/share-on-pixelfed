@@ -35,7 +35,13 @@ class Options_Handler {
 	 * @since 0.1.0
 	 * @var   array $options Plugin options.
 	 */
-	private $options = array();
+	private $options = array(
+		'pixelfed_host'          => '',
+		'pixelfed_client_id'     => '',
+		'pixelfed_client_secret' => '',
+		'pixelfed_access_token'  => '',
+		'post_types'             => array(),
+	);
 
 	/**
 	 * Constructor.
@@ -43,15 +49,10 @@ class Options_Handler {
 	 * @since 0.1.0
 	 */
 	public function __construct() {
-		$default_options = array(
-			'pixelfed_host'          => '',
-			'pixelfed_client_id'     => '',
-			'pixelfed_client_secret' => '',
-			'pixelfed_access_token'  => '',
-			'post_types'             => array(),
+		$this->options = get_option(
+			'share_on_pixelfed_settings',
+			$this->options
 		);
-
-		$this->options = get_option( 'share_on_pixelfed_settings', $default_options );
 
 		add_action( 'admin_menu', array( $this, 'create_menu' ) );
 	}
@@ -93,7 +94,6 @@ class Options_Handler {
 	 * @return array           Options to be stored.
 	 */
 	public function sanitize_settings( $settings ) {
-	    error_log( print_r( $settings, true ) ) ;
 		$this->options['post_types'] = array();
 
 		if ( isset( $settings['post_types'] ) && is_array( $settings['post_types'] ) ) {
@@ -193,7 +193,6 @@ class Options_Handler {
 				}
 
 				if ( ! empty( $this->options['pixelfed_client_id'] ) && ! empty( $this->options['pixelfed_client_secret'] ) ) {
-				    error_log( print_r( $_GET, true ) );
 					// An app was successfully registered.
 					if ( ! empty( $_GET['code'] ) ) {
 						// Access token request.
@@ -432,5 +431,15 @@ class Options_Handler {
 
 		// Something went wrong.
 		return false;
+	}
+
+	/**
+	 * Returns the plugin options.
+	 *
+	 * @since  0.2.0
+	 * @return array Plugin options.
+	 */
+	public function get_options() {
+		return $this->options;
 	}
 }
