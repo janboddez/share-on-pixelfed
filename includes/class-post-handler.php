@@ -12,6 +12,13 @@ namespace Share_On_Pixelfed;
  */
 class Post_Handler {
 	/**
+	 * This plugin's single instance.
+	 *
+	 * @var Post_Handler $instance Plugin instance.
+	 */
+	private static $instance;
+
+	/**
 	 * Array that holds this plugin's settings.
 	 *
 	 * @since 0.1.0
@@ -20,14 +27,25 @@ class Post_Handler {
 	private $options = array();
 
 	/**
+	 * Returns the single instance of this class.
+	 *
+	 * @return Post_Handler Single class instance.
+	 */
+	public static function get_instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+
+		return self::$instance;
+	}
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
 	 */
-	public function __construct() {
-		// Fetch settings from database. Fall back onto an empty array if none
-		// exist.
-		$this->options = get_option( 'share_on_pixelfed_settings', array() );
+	private function __construct() {
+		$this->options = Options_Handler::get_instance()->get_options();
 
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 

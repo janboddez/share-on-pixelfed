@@ -12,6 +12,13 @@ namespace Share_On_Pixelfed;
  */
 class Options_Handler {
 	/**
+	 * This plugin's single instance.
+	 *
+	 * @var Post_Handler $instance Plugin instance.
+	 */
+	private static $instance;
+
+	/**
 	 * WordPress' default post types.
 	 *
 	 * @since 0.1.0
@@ -40,15 +47,30 @@ class Options_Handler {
 		'pixelfed_client_id'     => '',
 		'pixelfed_client_secret' => '',
 		'pixelfed_access_token'  => '',
+		'pixelfed_refresh_token' => '',
+		'pixelfed_token_expiry'  => '',
 		'post_types'             => array(),
 	);
+
+	/**
+	 * Returns the single instance of this class.
+	 *
+	 * @return Options_Handler Single class instance.
+	 */
+	public static function get_instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+
+		return self::$instance;
+	}
 
 	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
 	 */
-	public function __construct() {
+	private function __construct() {
 		$this->options = get_option(
 			'share_on_pixelfed_settings',
 			$this->options
@@ -113,23 +135,31 @@ class Options_Handler {
 
 		if ( isset( $settings['pixelfed_host'] ) ) {
 			if ( untrailingslashit( $settings['pixelfed_host'] ) !== $this->options['pixelfed_host'] && wp_http_validate_url( $settings['pixelfed_host'] ) ) {
-				// The new URL differs from the old one. Someone's switched
-				// instances.
-				if ( $this->revoke_access() ) {
-					// Update instance URL, forget client ID and secret. A new
-					// client ID and secret will be requested the next time this
-					// page is visited.
-					$this->options['pixelfed_host']          = untrailingslashit( $settings['pixelfed_host'] );
-					$this->options['pixelfed_client_id']     = '';
-					$this->options['pixelfed_client_secret'] = '';
-				} elseif ( '' === $this->options['pixelfed_host'] ) {
+				if ( '' === $this->options['pixelfed_host'] ) {
 					// First time instance's set?
 					$this->options['pixelfed_host'] = untrailingslashit( $settings['pixelfed_host'] );
+				} else {
+					// Someone's switched instances. Delete tokens. Note that
+					// requests to `$this->options['pixelfed_host'] . '/oauth/revoke'`
+					// result in a 404; that's why we do this client-side.
+					$this->options['pixelfed_access_token']  = '';
+					$this->options['pixelfed_refresh_token'] = '';
+					$this->options['pixelfed_token_expiry']  = '';
+
+					update_option( 'share_on_pixelfed_settings', $this->options );
 				}
 			} elseif ( '' === $settings['pixelfed_host'] ) {
 				// Assuming sharing should be disabled.
 				$this->options['pixelfed_host'] = '';
-				$this->revoke_access();
+
+				// phpcs:ignore
+				// $this->revoke_access();
+				$this->options['pixelfed_access_token']  = '';
+				$this->options['pixelfed_refresh_token'] = '';
+				$this->options['pixelfed_token_expiry']  = '';
+
+				update_option( 'share_on_pixelfed_settings', $this->options );
+
 			}
 		}
 
@@ -207,7 +237,20 @@ class Options_Handler {
 
 					if ( isset( $_GET['action'] ) && 'revoke' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), basename( __FILE__ ) ) ) {
 						// Request to revoke access.
-						$this->revoke_access();
+						// phpcs:ignore
+						// $this->revoke_access();
+						$this->options['pixelfed_access_token']  = '';
+						$this->options['pixelfed_refresh_token'] = '';
+						$this->options['pixelfed_token_expiry']  = '';
+
+						update_option( 'share_on_pixelfed_settings', $this->options );
+					}
+
+					if ( isset( $_GET['action'] ) && 'refresh' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), basename( __FILE__ ) ) ) {
+						// Request to refresh token.
+						// phpcs:ignore
+						// $this->revoke_access();
+						$this->refresh_access_token();
 					}
 
 					if ( empty( $this->options['pixelfed_access_token'] ) ) {
@@ -228,7 +271,7 @@ class Options_Handler {
 						);
 						?>
 						<p><?php esc_html_e( 'Authorize WordPress to read and write to your Pixelfed timeline in order to enable crossposting.', 'share-on-pixelfed' ); ?></p>
-						<p><?php printf( '<a href="%1$s" class="button">%2$s</a>', esc_url( $url ), esc_html__( 'Authorize Access', 'share-on-pixelfed' ) ); ?>
+						<p class="submit"><?php printf( '<a href="%1$s" class="button">%2$s</a>', esc_url( $url ), esc_html__( 'Authorize Access', 'share-on-pixelfed' ) ); ?>
 						<?php
 					} else {
 						// An access token exists.
@@ -237,7 +280,7 @@ class Options_Handler {
 						<p class="submit">
 							<?php
 							printf(
-								'<a href="%1$s" class="button">%2$s</a>',
+								'<a href="%1$s" class="button" style="border-color: #a00; color: #a00;">%2$s</a>',
 								esc_url(
 									add_query_arg(
 										array(
@@ -270,6 +313,25 @@ class Options_Handler {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
 				?>
 				<h2><?php esc_html_e( 'Debugging', 'share-on-pixelfed' ); ?></h2>
+				<p><?php esc_html_e( 'Access tokens are refreshed automatically, but a manual refresh is possible, too.', 'share-on-pixelfed' ); ?></p>
+				<p class="submit">
+					<?php
+					printf(
+						'<a href="%1$s" class="button">%2$s</a>',
+						esc_url(
+							add_query_arg(
+								array(
+									'page'     => 'share-on-pixelfed',
+									'action'   => 'refresh',
+									'_wpnonce' => wp_create_nonce( basename( __FILE__ ) ),
+								),
+								admin_url( 'options-general.php' )
+							)
+						),
+						esc_html__( 'Refresh Token', 'share-on-pixelfed' )
+					);
+					?>
+				</p>
 				<p><?php esc_html_e( 'Below information is not meant to be shared with anyone but may help when troubleshooting issues.', 'share-on-pixelfed' ); ?></p>
 				<p><textarea class="widefat" rows="5"><?php print_r( $this->options ); ?></textarea></p><?php // phpcs:ignore WordPress.PHP.DevelopmentFunctions ?>
 				<?php
@@ -321,6 +383,8 @@ class Options_Handler {
 			$this->options['pixelfed_client_id']     = sanitize_text_field( $app->client_id );
 			$this->options['pixelfed_client_secret'] = sanitize_text_field( $app->client_secret );
 			update_option( 'share_on_pixelfed_settings', $this->options );
+
+			error_log( 'Pixelfed client app registered.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
 		} else {
 			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
 		}
@@ -366,7 +430,72 @@ class Options_Handler {
 		if ( isset( $token->access_token ) ) {
 			// Success. Store access token.
 			$this->options['pixelfed_access_token'] = $token->access_token;
+
+			if ( isset( $token->refresh_token ) ) {
+				$this->options['pixelfed_refresh_token'] = $token->refresh_token;
+			}
+
+			if ( isset( $token->expires_in ) ) {
+				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
+			}
+
 			update_option( 'share_on_pixelfed_settings', $this->options );
+			error_log( 'Token stored.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+
+			return true;
+		} else {
+			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+		}
+
+		return false;
+	}
+
+	/**
+	 * Requests a token refresh.
+	 *
+	 * @since 0.1.0
+	 */
+	private function refresh_access_token() {
+		if ( ! current_user_can( 'manage_options' ) && ! wp_doing_cron() ) {
+			return false;
+		}
+
+		// Request an access token.
+		$response = wp_remote_post(
+			esc_url_raw( $this->options['pixelfed_host'] ) . '/oauth/token',
+			array(
+				'body' => array(
+					'client_id'     => $this->options['pixelfed_client_id'],
+					'client_secret' => $this->options['pixelfed_client_secret'],
+					'grant_type'    => 'refresh_token',
+					'refresh_token' => $this->options['pixelfed_refresh_token'],
+					'scope'         => 'read write',
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			return false;
+		}
+
+		$token = json_decode( $response['body'] );
+
+		if ( isset( $token->access_token ) ) {
+			// Success. Store access token.
+			$this->options['pixelfed_access_token'] = $token->access_token;
+
+			if ( isset( $token->refresh_token ) ) {
+				$this->options['pixelfed_refresh_token'] = $token->refresh_token;
+			}
+
+			if ( isset( $token->expires_in ) ) {
+				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
+			}
+
+			update_option( 'share_on_pixelfed_settings', $this->options );
+			error_log( 'Pixelfed access token refreshed.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+
 			return true;
 		} else {
 			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
@@ -431,6 +560,27 @@ class Options_Handler {
 
 		// Something went wrong.
 		return false;
+	}
+
+	/**
+	 * Requests an access token refresh before the current token expires.
+	 *
+	 * Normally runs once a day.
+	 *
+	 * @since  0.3.0
+	 */
+	public function cron_refresh_token() {
+		if ( empty( $this->options['pixelfed_token_expiry'] ) ) {
+			// No expiry date set.
+			return;
+		}
+
+		if ( $this->options['pixelfed_token_expiry'] > time() + 2 * DAY_IN_SECONDS ) {
+			// Token doesn't expire till two days from now.
+			return;
+		}
+
+		$this->refresh_access_token();
 	}
 
 	/**
