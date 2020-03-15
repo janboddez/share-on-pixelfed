@@ -14,7 +14,7 @@ class Options_Handler {
 	/**
 	 * This plugin's single instance.
 	 *
-	 * @var Post_Handler $instance Plugin instance.
+	 * @var Options_Handler $instance Plugin instance.
 	 */
 	private static $instance;
 
