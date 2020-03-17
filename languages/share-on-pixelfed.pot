@@ -1,0 +1,101 @@
+# Copyright (C) 2020 Jan Boddez
+# This file is distributed under the same license as the Share on Pixelfed plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: Share on Pixelfed 0.4\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/share-on-pixelfed\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2020-03-17T18:36:01+01:00\n"
+"PO-Revision-Date: 2020-03-17T18:36:01+01:00\n"
+"X-Generator: WP-CLI 2.0.1\n"
+"X-Domain: share-on-pixelfed\n"
+
+#. Plugin Name of the plugin
+#: includes/class-post-handler.php:61
+#: includes/class-post-handler.php:80
+#: includes/class-options-handler.php:77
+#: includes/class-options-handler.php:78
+#: includes/class-options-handler.php:164
+msgid "Share on Pixelfed"
+msgstr ""
+
+#. Description of the plugin
+msgid "Easily share WordPress (image) posts on Pixelfed."
+msgstr ""
+
+#. Author of the plugin
+msgid "Jan Boddez"
+msgstr ""
+
+#. Author URI of the plugin
+msgid "https://janboddez.tech/"
+msgstr ""
+
+#: includes/class-options-handler.php:166
+msgid "Settings"
+msgstr ""
+
+#: includes/class-options-handler.php:180
+msgid "Instance"
+msgstr ""
+
+#: includes/class-options-handler.php:182
+msgid "Your Pixelfed instance&rsquo;s URL."
+msgstr ""
+
+#: includes/class-options-handler.php:185
+msgid "Supported Post Types"
+msgstr ""
+
+#: includes/class-options-handler.php:196
+msgid "Post types for which sharing to Pixelfed is possible. (Sharing can still be disabled on a per-post basis.)"
+msgstr ""
+
+#: includes/class-options-handler.php:202
+#: includes/class-options-handler.php:256
+msgid "Authorize Access"
+msgstr ""
+
+#: includes/class-options-handler.php:218
+msgid "Access granted!"
+msgstr ""
+
+#: includes/class-options-handler.php:255
+msgid "Authorize WordPress to read and write to your Pixelfed timeline in order to enable crossposting."
+msgstr ""
+
+#: includes/class-options-handler.php:261
+msgid "You&rsquo;ve authorized WordPress to read and write to your Pixelfed timeline."
+msgstr ""
+
+#: includes/class-options-handler.php:276
+msgid "Revoke Access"
+msgstr ""
+
+#: includes/class-options-handler.php:285
+msgid "Something went wrong contacting your Pixelfed instance. Please reload this page to try again."
+msgstr ""
+
+#: includes/class-options-handler.php:291
+msgid "Please fill out and save your Pixelfed instance&rsquo;s URL first."
+msgstr ""
+
+#: includes/class-options-handler.php:297
+msgid "Debugging"
+msgstr ""
+
+#: includes/class-options-handler.php:298
+msgid "Access tokens are refreshed automatically, but a manual refresh is possible, too."
+msgstr ""
+
+#: includes/class-options-handler.php:313
+msgid "Refresh Token"
+msgstr ""
+
+#: includes/class-options-handler.php:317
+msgid "Below information is not meant to be shared with anyone but may help when troubleshooting issues."
+msgstr ""
