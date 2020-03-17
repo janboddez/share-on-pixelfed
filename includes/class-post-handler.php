@@ -12,41 +12,33 @@ namespace Share_On_Pixelfed;
  */
 class Post_Handler {
 	/**
-	 * This plugin's single instance.
-	 *
-	 * @var Post_Handler $instance Plugin instance.
-	 */
-	private static $instance;
-
-	/**
 	 * Array that holds this plugin's settings.
 	 *
 	 * @since 0.1.0
-	 * @var   array $options Plugin options.
+	 *
+	 * @var array $options Plugin options.
 	 */
 	private $options = array();
-
-	/**
-	 * Returns the single instance of this class.
-	 *
-	 * @return Post_Handler Single class instance.
-	 */
-	public static function get_instance() {
-		if ( null === self::$instance ) {
-			self::$instance = new self();
-		}
-
-		return self::$instance;
-	}
 
 	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
+	 *
+	 * @param Options_Handler $options_handler `Options_Handler` instance.
 	 */
-	private function __construct() {
-		$this->options = Options_Handler::get_instance()->get_options();
+	public function __construct( Options_Handler $options_handler = null ) {
+		if ( null !== $options_handler ) {
+			$this->options = $options_handler->get_options();
+		}
+	}
 
+	/**
+	 * Registers hook callbacks.
+	 *
+	 * @since 0.4.0
+	 */
+	public function register() {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 
 		add_action( 'transition_post_status', array( $this, 'update_meta' ), 11, 3 );
@@ -94,6 +86,7 @@ class Post_Handler {
 	 * Handles metadata.
 	 *
 	 * @since 0.1.0
+	 *
 	 * @param string  $new_status Old post status.
 	 * @param string  $old_status New post status.
 	 * @param WP_Post $post       Post object.
@@ -130,6 +123,7 @@ class Post_Handler {
 	 * Shares a post on Pixelfed.
 	 *
 	 * @since 0.1.0
+	 *
 	 * @param string  $new_status New post status.
 	 * @param string  $old_status Old post status.
 	 * @param WP_Post $post       Post object.
@@ -239,8 +233,10 @@ class Post_Handler {
 	/**
 	 * Uploads a post thumbnail and returns a (single) media ID.
 	 *
-	 * @since  0.1.0
-	 * @param  int $post_id Post ID.
+	 * @since 0.1.0
+	 *
+	 * @param int $post_id Post ID.
+	 *
 	 * @return string|null  Unique media ID, or nothing on failure.
 	 */
 	private function upload_thumbnail( $post_id ) {
