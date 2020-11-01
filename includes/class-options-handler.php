@@ -124,28 +124,49 @@ class Options_Handler {
 		}
 
 		if ( isset( $settings['pixelfed_host'] ) ) {
-			if ( untrailingslashit( $settings['pixelfed_host'] ) !== $this->options['pixelfed_host'] && wp_http_validate_url( $settings['pixelfed_host'] ) ) {
-				if ( '' === $this->options['pixelfed_host'] ) {
-					// First time instance's set?
-					$this->options['pixelfed_host'] = untrailingslashit( $settings['pixelfed_host'] );
-				} else {
-					// Someone's switched instances. Delete tokens. Note that we
-					// can't remotely revoke tokens (which last 15 days).
-					$this->options['pixelfed_access_token']  = '';
-					$this->options['pixelfed_refresh_token'] = '';
-					$this->options['pixelfed_token_expiry']  = '';
+			// There are two options here: either the field is empty, and then
+			// we'll remove the stored value but otherwise don't do much, or it
+			// a (possibly invalid) URL of sorts, and then we'll either store it
+			// or display an error message.
 
-					update_option( 'share_on_pixelfed_settings', $this->options );
-				}
-			} elseif ( '' === $settings['pixelfed_host'] ) {
+			$pixelfed_host = untrailingslashit( trim( $settings['pixelfed_host'] ) );
+
+			if ( '' === $pixelfed_host ) {
+				// Removing the instance URL. Might be done to temporarily
+				// disable crossposting. Let's not revoke access just yet.
 				$this->options['pixelfed_host'] = '';
+			} else {
+				if ( 0 !== strpos( $pixelfed_host, 'https://' ) && 0 !== strpos( $pixelfed_host, 'http://' ) ) {
+					// Missing protocol. Try adding `https://`.
+					$pixelfed_host = 'https://' . $pixelfed_host;
+				}
 
-				// Assuming sharing should be disabled.
-				$this->options['pixelfed_access_token']  = '';
-				$this->options['pixelfed_refresh_token'] = '';
-				$this->options['pixelfed_token_expiry']  = '';
+				if ( wp_http_validate_url( $pixelfed_host ) ) {
+					// We should only update the URL (and forget all tokens) if
+					// it was actually changed.
+					if ( $pixelfed_host !== $this->options['pixelfed_host'] ) {
+						$this->options['pixelfed_host'] = untrailingslashit( $pixelfed_host );
 
-				update_option( 'share_on_pixelfed_settings', $this->options );
+						// Someone's switched instances. Delete tokens. Note
+						// that we can't remotely revoke tokens (which last 15
+						// days).
+						$this->options['pixelfed_access_token']  = '';
+						$this->options['pixelfed_refresh_token'] = '';
+						$this->options['pixelfed_token_expiry']  = '';
+
+						// Forget client ID and secret.
+						$this->options['pixelfed_client_id']     = '';
+						$this->options['pixelfed_client_secret'] = '';
+
+					}
+				} else {
+					// Invalid URL. Display error message.
+					add_settings_error(
+						'share-on-pixelfed-pixelfed-host',
+						'invalid-url',
+						esc_html__( 'Please provide a valid URL.', 'share-on-pixelfed' )
+					);
+				}
 			}
 		}
 
@@ -178,7 +199,7 @@ class Options_Handler {
 				<table class="form-table">
 					<tr valign="top">
 						<th scope="row"><label for="share_on_pixelfed_settings[pixelfed_host]"><?php esc_html_e( 'Instance', 'share-on-pixelfed' ); ?></label></th>
-						<td><input type="text" id="share_on_pixelfed_settings[pixelfed_host]" name="share_on_pixelfed_settings[pixelfed_host]" style="min-width: 33%;" value="<?php echo esc_attr( $this->options['pixelfed_host'] ); ?>" />
+						<td><input type="url" id="share_on_pixelfed_settings[pixelfed_host]" name="share_on_pixelfed_settings[pixelfed_host]" style="min-width: 33%;" value="<?php echo esc_attr( $this->options['pixelfed_host'] ); ?>" />
 						<p class="description"><?php esc_html_e( 'Your Pixelfed instance&rsquo;s URL.', 'share-on-pixelfed' ); ?></p></td>
 					</tr>
 					<tr valign="top">
