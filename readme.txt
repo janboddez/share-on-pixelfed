@@ -1,7 +1,7 @@
 === Share on Pixelfed ===
 Contributors: janboddez
 Tags: pixelfed, share, publicize, crosspost, fediverse
-Tested up to: 5.4
+Tested up to: 5.5
 License: GNU General Public License v3.0
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -24,6 +24,9 @@ After activation, head over to *Settings > Share on Pixelfed* to authorize WordP
 More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
 
 == Changelog ==
+= 0.5 =
+More robust instance URL handling. Reset client details after instance switch.
+
 = 0.2 =
 Allow `Post_Handler` hook callbacks to be removed.
 
