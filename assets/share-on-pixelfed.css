@@ -1,0 +1,11 @@
+#share-on-pixelfed .description {
+	margin: 1em 0 1px;
+}
+
+#share-on-pixelfed .url .ellipsis::after {
+	content: "…";
+}
+
+#share-on-pixelfed .unlink {
+	color: #a00;
+}

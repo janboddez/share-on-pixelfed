@@ -65,6 +65,7 @@ class Options_Handler {
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'create_menu' ) );
 		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_refresh_token' ) );
+		add_action( 'admin_post_share_on_pixelfed', array( $this, 'admin_post' ) );
 	}
 
 	/**
@@ -240,20 +241,13 @@ class Options_Handler {
 							</div>
 							<?php
 						}
-					}
-
-					if ( isset( $_GET['action'] ) && 'revoke' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-revoke' ) ) {
+					} elseif ( isset( $_GET['action'] ) && 'revoke' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-revoke' ) ) {
 						// Forget tokens.
 						$this->options['pixelfed_access_token']  = '';
 						$this->options['pixelfed_refresh_token'] = '';
 						$this->options['pixelfed_token_expiry']  = '';
 
 						update_option( 'share_on_pixelfed_settings', $this->options );
-					}
-
-					if ( isset( $_GET['action'] ) && 'refresh' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-refresh' ) ) {
-						// Token refresh request.
-						$this->refresh_access_token();
 					}
 
 					if ( empty( $this->options['pixelfed_access_token'] ) ) {
@@ -274,13 +268,16 @@ class Options_Handler {
 						);
 						?>
 						<p><?php esc_html_e( 'Authorize WordPress to read and write to your Pixelfed timeline in order to enable crossposting.', 'share-on-pixelfed' ); ?></p>
-						<p class="submit"><?php printf( '<a href="%1$s" class="button">%2$s</a>', esc_url( $url ), esc_html__( 'Authorize Access', 'share-on-pixelfed' ) ); ?>
+						<p><?php printf( '<a href="%1$s" class="button">%2$s</a>', esc_url( $url ), esc_html__( 'Authorize Access', 'share-on-pixelfed' ) ); ?>
 						<?php
 					} else {
 						// An access token exists.
 						?>
-						<p><?php esc_html_e( 'You&rsquo;ve authorized WordPress to read and write to your Pixelfed timeline.', 'share-on-pixelfed' ); ?></p>
-						<p class="submit">
+						<p>
+							<?php esc_html_e( 'You&rsquo;ve authorized WordPress to read and write to your Pixelfed timeline.', 'share-on-pixelfed' ); ?>
+							<?php esc_html_e( 'Access tokens are refreshed automatically, but a manual refresh is possible, too.', 'share-on-pixelfed' ); ?>
+						</p>
+						<p>
 							<?php
 							printf(
 								'<a href="%1$s" class="button" style="border-color: #a00; color: #a00;">%2$s</a>',
@@ -295,6 +292,25 @@ class Options_Handler {
 									)
 								),
 								esc_html__( 'Revoke Access', 'share-on-pixelfed' )
+							);
+							?>
+							<?php
+							// Using `admin-post.php` rather than check for a
+							// `$_GET` param on the settings page, which may
+							// trigger more than one refresh token request.
+							printf(
+								'<a href="%1$s" class="button" style="margin-left: 0.25em;">%2$s</a>',
+								esc_url(
+									add_query_arg(
+										array(
+											'action'   => 'share_on_pixelfed',
+											'refresh-token' => 'true',
+											'_wpnonce' => wp_create_nonce( 'share-on-pixelfed-refresh-token' ),
+										),
+										admin_url( 'admin-post.php' )
+									)
+								),
+								esc_html__( 'Refresh Token', 'share-on-pixelfed' )
 							);
 							?>
 						</p>
@@ -315,28 +331,28 @@ class Options_Handler {
 
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
 				?>
-				<h2><?php esc_html_e( 'Debugging', 'share-on-pixelfed' ); ?></h2>
-				<p><?php esc_html_e( 'Access tokens are refreshed automatically, but a manual refresh is possible, too.', 'share-on-pixelfed' ); ?></p>
-				<p class="submit">
+				<h2 style="margin-top: 2em;"><?php esc_html_e( 'Debugging', 'share-on-pixelfed' ); ?></h2>
+				<p><?php esc_html_e( 'Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens!', 'share-on-pixelfed' ); ?></p>
+				<p style="margin-bottom: 2em;">
 					<?php
 					printf(
-						'<a href="%1$s" class="button">%2$s</a>',
+						'<a href="%1$s" class="button button-reset-settings" style="color: #a00; border-color: #a00;">%2$s</a>',
 						esc_url(
 							add_query_arg(
 								array(
-									'page'     => 'share-on-pixelfed',
-									'action'   => 'refresh',
-									'_wpnonce' => wp_create_nonce( 'share-on-pixelfed-refresh' ),
+									'action'   => 'share_on_pixelfed',
+									'reset'    => 'true',
+									'_wpnonce' => wp_create_nonce( 'share-on-pixelfed-reset' ),
 								),
-								admin_url( 'options-general.php' )
+								admin_url( 'admin-post.php' )
 							)
 						),
-						esc_html__( 'Refresh Token', 'share-on-pixelfed' )
+						esc_html__( 'Reset Settings', 'share-on-pixelfed' )
 					);
 					?>
 				</p>
 				<p><?php esc_html_e( 'Below information is not meant to be shared with anyone but may help when troubleshooting issues.', 'share-on-pixelfed' ); ?></p>
-				<p><textarea class="widefat" rows="5"><?php print_r( $this->options ); ?></textarea></p><?php // phpcs:ignore WordPress.PHP.DevelopmentFunctions ?>
+				<p><textarea class="widefat" rows="8" style="font-size: 13px; font-family: monospace, monospace;"><?php print_r( $this->options ); ?></textarea></p><?php // phpcs:ignore WordPress.PHP.DevelopmentFunctions ?>
 				<?php
 			}
 			?>
@@ -375,7 +391,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return;
 		}
 
@@ -388,7 +404,7 @@ class Options_Handler {
 
 			update_option( 'share_on_pixelfed_settings', $this->options );
 		} else {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 	}
 
@@ -424,7 +440,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -442,11 +458,12 @@ class Options_Handler {
 				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
 			}
 
+			error_log( '[Share on Pixelfed] ' . __( 'Succesfully authorized WordPress.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			return true;
 		} else {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		return false;
@@ -477,7 +494,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -499,7 +516,7 @@ class Options_Handler {
 
 			return true;
 		} else {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		return false;
@@ -546,18 +563,19 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
 		if ( 200 === wp_remote_retrieve_response_code( $response ) ) {
 			// Success. Delete access token.
 			$this->options['pixelfed_access_token'] = '';
+			error_log( '[Share on Pixelfed] ' . __( 'Access revoked.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			return true;
 		} else {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		// Something went wrong.
@@ -583,6 +601,58 @@ class Options_Handler {
 		}
 
 		$this->refresh_access_token();
+	}
+
+	/**
+	 * Resets all plugin options.
+	 *
+	 * @since 0.5.1
+	 */
+	private function reset_options() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return false;
+		}
+
+		$this->options = array(
+			'pixelfed_host'          => '',
+			'pixelfed_client_id'     => '',
+			'pixelfed_client_secret' => '',
+			'pixelfed_access_token'  => '',
+			'pixelfed_refresh_token' => '',
+			'pixelfed_token_expiry'  => '',
+			'post_types'             => array(),
+		);
+
+		update_option( 'share_on_pixelfed_settings', $this->options );
+	}
+
+	/**
+	 * `admin-post.php` callback.
+	 *
+	 * @since 0.5.1
+	 */
+	public function admin_post() {
+		if ( isset( $_GET['refresh-token'] ) && 'true' === $_GET['refresh-token'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-refresh-token' ) ) {
+			// Token refresh request.
+			error_log( '[Share on Pixelfed] ' . __( 'Attempting to refresh access token', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			$this->refresh_access_token();
+		} elseif ( isset( $_GET['reset'] ) && 'true' === $_GET['reset'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-reset' ) ) {
+			// Reset all of this plugin's settings.
+			error_log( '[Share on Pixelfed] ' . __( 'Clearing all plugin settings.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			$this->reset_options();
+		}
+
+		wp_redirect( // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
+			esc_url_raw(
+				add_query_arg(
+					array(
+						'page' => 'share-on-pixelfed',
+					),
+					remove_query_arg( array( 'refresh', 'reset', '_wpnonce' ), admin_url( 'options-general.php' ) )
+				)
+			)
+		);
+		exit;
 	}
 
 	/**

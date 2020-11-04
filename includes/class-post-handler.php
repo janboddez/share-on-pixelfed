@@ -43,6 +43,9 @@ class Post_Handler {
 
 		add_action( 'transition_post_status', array( $this, 'update_meta' ), 11, 3 );
 		add_action( 'transition_post_status', array( $this, 'toot' ), 999, 3 );
+
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+		add_action( 'wp_ajax_share_on_pixelfed_unlink_url', array( $this, 'unlink_url' ) );
 	}
 
 	/**
@@ -73,13 +76,30 @@ class Post_Handler {
 	 * @param WP_Post $post Post being edited.
 	 */
 	public function render_meta_box( $post ) {
+		wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' );
 		?>
-			<?php wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' ); ?>
-			<label>
-				<input type="checkbox" name="share_on_pixelfed" value="1" <?php checked( in_array( get_post_meta( $post->ID, '_share_on_pixelfed', true ), array( '', '1' ), true ) ); ?>>
-				<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
-			</label>
+		<label>
+			<input type="checkbox" name="share_on_pixelfed" value="1" <?php checked( in_array( get_post_meta( $post->ID, '_share_on_pixelfed', true ), array( '', '1' ), true ) ); ?>>
+			<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
+		</label>
 		<?php
+		$url = get_post_meta( $post->ID, '_share_on_pixelfed_url', true );
+
+		if ( '' !== $url && false !== wp_http_validate_url( $url ) ) :
+			$url_parts = wp_parse_url( $url );
+
+			$display_url  = '<span class="screen-reader-text">' . $url_parts['scheme'] . '://';
+			$display_url .= ( ! empty( $url_parts['user'] ) ? $url_parts['user'] . ( ! empty( $url_parts['pass'] ) ? ':' . $url_parts['pass'] : '' ) . '@' : '' ) . '</span>';
+			$display_url .= '<span class="ellipsis">' . substr( $url_parts['host'] . $url_parts['path'], 0, 20 ) . '</span><span class="screen-reader-text">' . substr( $url_parts['host'] . $url_parts['path'], 20 ) . '</span>';
+			?>
+			<p class="description">
+				<?php /* translators: toot URL */ ?>
+				<?php printf( esc_html__( 'Shared at %s', 'share-on-pixelfed' ), '<a class="url" href="' . esc_url( $url ) . '">' . $display_url . '</a>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+				<?php /* translators: "unlink" link text */ ?>
+				<a href="#" class="unlink"><?php esc_html_e( 'Unlink', 'share-on-pixelfed' ); ?></a>
+			</p>
+			<?php
+		endif;
 	}
 
 	/**
@@ -288,5 +308,77 @@ class Post_Handler {
 		// Provided debugging's enabled, let's store the (somehow faulty)
 		// response.
 		error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+	}
+
+	/**
+	 * Deletes a post's Pixelfed URL.
+	 *
+	 * Should only ever be called through AJAX.
+	 *
+	 * @since 0.5.1
+	 */
+	public function unlink_url() {
+		if ( ! isset( $_POST['share_on_pixelfed_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['share_on_pixelfed_nonce'] ), basename( __FILE__ ) ) ) {
+			status_header( 400 );
+			esc_html_e( 'Missing or invalid nonce.', 'share-on-pixelfed' );
+			wp_die();
+		}
+
+		if ( ! isset( $_POST['post_id'] ) || ! ctype_digit( $_POST['post_id'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			status_header( 400 );
+			esc_html_e( 'Missing or incorrect post ID.', 'share-on-pixelfed' );
+			wp_die();
+		}
+
+		if ( ! current_user_can( 'edit_post', intval( $_POST['post_id'] ) ) ) {
+			status_header( 400 );
+			esc_html_e( 'Insufficient rights.', 'share-on-pixelfed' );
+			wp_die();
+		}
+
+		// Have WordPress forget the Pixelfed URL.
+		if ( '' !== get_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url', true ) ) {
+			delete_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url' );
+		}
+
+		wp_die();
+	}
+
+	/**
+	 * Adds admin scripts and styles.
+	 *
+	 * @since 0.5.1
+	 *
+	 * @param string $hook_suffix Current WP-Admin page.
+	 */
+	public function enqueue_scripts( $hook_suffix ) {
+		if ( 'post-new.php' !== $hook_suffix && 'post.php' !== $hook_suffix ) {
+			// Not an "Edit Post" screen.
+			return;
+		}
+
+		global $post;
+
+		if ( empty( $post ) ) {
+			// Can't do much without a `$post` object.
+			return;
+		}
+
+		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
+			// Unsupported post type.
+			return;
+		}
+
+		// Enqueue CSS and JS.
+		wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', dirname( __FILE__ ) ), array(), '0.5.1' );
+		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.5.1', false );
+		wp_localize_script(
+			'share-on-pixelfed',
+			'share_on_pixelfed_obj',
+			array(
+				'message' => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
+				'post_id' => $post->ID, // Pass current post ID to JS.
+			)
+		);
 	}
 }
