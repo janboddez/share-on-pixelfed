@@ -232,8 +232,8 @@ class Options_Handler {
 
 				if ( ! empty( $this->options['pixelfed_client_id'] ) && ! empty( $this->options['pixelfed_client_secret'] ) ) {
 					// An app was successfully registered.
-					if ( ! empty( $_GET['code'] ) ) {
-						// Access token request.
+					if ( ! empty( $_GET['code'] ) && empty( $this->options['pixelfed_access_token'] ) ) {
+						// Access token request. Skip if we've already got one.
 						if ( $this->request_access_token( sanitize_text_field( wp_unslash( $_GET['code'] ) ) ) ) {
 							?>
 							<div class="notice notice-success is-dismissible">
@@ -404,7 +404,7 @@ class Options_Handler {
 
 			update_option( 'share_on_pixelfed_settings', $this->options );
 		} else {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			error_log( '[Share on Pixelfed] Could not register new client. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 	}
 
@@ -440,7 +440,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			error_log( '[Share on Pixelfed] Authorization failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -458,12 +458,12 @@ class Options_Handler {
 				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
 			}
 
-			error_log( '[Share on Pixelfed] ' . __( 'Succesfully authorized WordPress.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( '[Share on Pixelfed] ' . __( 'Authorization successful.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			return true;
 		} else {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			error_log( '[Share on Pixelfed] Authorization failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		return false;
@@ -494,7 +494,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			error_log( '[Share on Pixelfed] Token refresh failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -512,6 +512,7 @@ class Options_Handler {
 				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
 			}
 
+			error_log( '[Share on Pixelfed] Token refresh successful, or token not up for renewal, yet.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			return true;
@@ -563,7 +564,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			error_log( '[Share on Pixelfed] Revoking access failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -634,7 +635,7 @@ class Options_Handler {
 	public function admin_post() {
 		if ( isset( $_GET['refresh-token'] ) && 'true' === $_GET['refresh-token'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-refresh-token' ) ) {
 			// Token refresh request.
-			error_log( '[Share on Pixelfed] ' . __( 'Attempting to refresh access token', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( '[Share on Pixelfed] ' . __( 'Attempting to refresh access token.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			$this->refresh_access_token();
 		} elseif ( isset( $_GET['reset'] ) && 'true' === $_GET['reset'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-reset' ) ) {
 			// Reset all of this plugin's settings.
