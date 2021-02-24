@@ -15,7 +15,8 @@ class Options_Handler {
 	 * WordPress' default post types.
 	 *
 	 * @since 0.1.0
-	 * @var   array WordPress' default post types, minus 'post' itself.
+	 *
+	 * @var array WordPress' default post types, minus 'post' itself.
 	 */
 	const DEFAULT_POST_TYPES = array(
 		'page',
@@ -27,6 +28,7 @@ class Options_Handler {
 		'user_request',
 		'oembed_cache',
 		'wp_block',
+		'coblocks_pattern', // Not WordPress', but CoBlocks'.
 	);
 
 	/**
@@ -43,6 +45,7 @@ class Options_Handler {
 		'pixelfed_refresh_token' => '',
 		'pixelfed_token_expiry'  => '',
 		'post_types'             => array(),
+		'use_first_image'        => false,
 	);
 
 	/**
@@ -122,6 +125,12 @@ class Options_Handler {
 					$this->options['post_types'][] = $post_type;
 				}
 			}
+		}
+
+		$this->options['use_first_image'] = false;
+
+		if ( isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ) {
+			$this->options['use_first_image'] = true;
 		}
 
 		if ( isset( $settings['pixelfed_host'] ) ) {
@@ -216,6 +225,14 @@ class Options_Handler {
 							?>
 						</ul>
 						<p class="description"><?php esc_html_e( 'Post types for which sharing to Pixelfed is possible. (Sharing can still be disabled on a per-post basis.)', 'share-on-pixelfed' ); ?></p></td>
+					</tr>
+					<tr valign="top">
+						<th scope="row"><?php esc_html_e( 'Image Choice', 'share-on-pixelfed' ); ?></th>
+						<td><ul style="list-style: none; margin-top: 4px;">
+							<li><label><input type="radio" name="share_on_pixelfed_settings[use_first_image]" value="0" <?php checked( empty( $this->options['use_first_image'] ) ); ?>><?php esc_html_e( 'Featured', 'share-on-pixelfed' ); ?></label></li>
+							<li><label><input type="radio" name="share_on_pixelfed_settings[use_first_image]" value="1" <?php checked( ! empty( $this->options['use_first_image'] ) ); ?>><?php esc_html_e( 'First', 'share-on-pixelfed' ); ?></label></li>
+						</ul>
+						<p class="description"><?php esc_html_e( 'Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)', 'share-on-pixelfed' ); ?></p></td>
 					</tr>
 				</table>
 				<p class="submit"><?php submit_button( __( 'Save Changes' ), 'primary', 'submit', false ); ?></p>

@@ -154,8 +154,14 @@ class Post_Handler {
 			return;
 		}
 
-		if ( ! has_post_thumbnail( $post->ID ) ) {
-			// No feature image.
+		if ( isset( $this->options['use_first_image'] ) && $this->options['use_first_image'] ) {
+			// Using first image rather than post thumbnail.
+			if ( ! $this->has_images( $post ) ) {
+				// No images.
+				return;
+			}
+		} elseif ( ! has_post_thumbnail( $post->ID ) ) {
+			// No featured image.
 			return;
 		}
 
@@ -209,14 +215,17 @@ class Post_Handler {
 			)
 		);
 
-		// Upload the featured image.
+		// Upload image.
 		$media_id = $this->upload_thumbnail( $post->ID );
 
-		if ( ! empty( $media_id ) ) {
-			// Handle after `http_build_query()`, as apparently the API
-			// doesn't like numbers for query string array keys.
-			$query_string .= '&media_ids[]=' . rawurlencode( $media_id );
+		if ( empty( $media_id ) ) {
+			// Something went wrong uploading the image.
+			return;
 		}
+
+		// Handle after `http_build_query()`, as apparently the API
+		// doesn't like numbers for query string array keys.
+		$query_string .= '&media_ids[]=' . rawurlencode( $media_id );
 
 		$response = wp_remote_post(
 			esc_url_raw( $this->options['pixelfed_host'] . '/api/v1/statuses' ),
@@ -257,13 +266,19 @@ class Post_Handler {
 	 *
 	 * @param int $post_id Post ID.
 	 *
-	 * @return string|null  Unique media ID, or nothing on failure.
+	 * @return string|null Unique media ID, or nothing on failure.
 	 */
 	private function upload_thumbnail( $post_id ) {
-		$thumb_id  = get_post_thumbnail_id( $post_id );
-		$url       = wp_get_attachment_url( $thumb_id );
-		$uploads   = wp_upload_dir();
-		$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+		if ( has_post_thumbnail( $post_id ) ) {
+			$thumb_id  = get_post_thumbnail_id( $post_id );
+			$url       = wp_get_attachment_url( $thumb_id );
+			$uploads   = wp_upload_dir();
+			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+		} else {
+			$file_path = $this->find_first_image( $post_id );
+		}
+
+		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
 
 		if ( ! is_file( $file_path ) ) {
 			// File doesn't seem to exist.
@@ -311,6 +326,85 @@ class Post_Handler {
 	}
 
 	/**
+	 * Checks whether a post's content contains images.
+	 *
+	 * External images are ignored.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param WP_Post $post Post object.
+	 *
+	 * @return bool If the post content contains images.
+	 */
+	private function has_images( $post ) {
+		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
+
+		if ( empty( $matches[1] ) ) {
+			// No images here.
+			return false;
+		}
+
+		foreach ( $matches[1] as $match ) {
+			// Convert URL back to attachment ID.
+			$image_id = attachment_url_to_postid( $match );
+
+			if ( 0 !== $image_id ) {
+				// Image exists in WordPress media library.
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns the file path of the first image inside a post's content.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return string|null File path, or nothing on failure.
+	 */
+	private function find_first_image( $post_id ) {
+		$post = get_post( $post_id );
+
+		// Assumes `src` value is wrapped in quotes. This will almost always be
+		// the case.
+		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
+
+		if ( empty( $matches[1] ) ) {
+			return;
+		}
+
+		foreach ( $matches[1] as $match ) {
+			// Convert URL back to attachment ID.
+			$image_id = attachment_url_to_postid( $match );
+
+			if ( 0 === $image_id ) {
+				// Unknown to WordPress.
+				continue;
+			}
+
+			// Then, grab the "large" image.
+			$image = wp_get_attachment_image_src( $image_id, 'large' );
+
+			if ( ! empty( $image[0] ) ) {
+				$url = $image[0];
+			} else {
+				// Get the original image instead.
+				$url = wp_get_attachment_url( $image_id );
+			}
+
+			// Convert URL to file path.
+			$uploads   = wp_upload_dir();
+			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+
+			return $file_path;
+		}
+	}
+
+	/**
 	 * Deletes a post's Pixelfed URL.
 	 *
 	 * Should only ever be called through AJAX.
@@ -349,7 +443,7 @@ class Post_Handler {
 	 *
 	 * @since 0.5.1
 	 *
-	 * @param string $hook_suffix Current WP-Admin page.
+	 * @param string $hook_suffix Current WP Admin page.
 	 */
 	public function enqueue_scripts( $hook_suffix ) {
 		if ( 'post-new.php' !== $hook_suffix && 'post.php' !== $hook_suffix ) {

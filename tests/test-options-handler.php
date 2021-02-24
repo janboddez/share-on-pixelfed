@@ -18,6 +18,7 @@ class Test_Options_Handler extends \WP_Mock\Tools\TestCase {
 			'pixelfed_refresh_token' => '',
 			'pixelfed_token_expiry'  => '',
 			'post_types'             => array(),
+			'use_first_image'        => false,
 		);
 
 		\WP_Mock::userFunction( 'get_option', array(
@@ -34,5 +35,7 @@ class Test_Options_Handler extends \WP_Mock\Tools\TestCase {
 		\WP_Mock::expectActionAdded( 'admin_menu', array( $options_handler, 'create_menu' ) );
 
 		$options_handler->register();
+
+		$this->assertHooksAdded();
 	}
 }

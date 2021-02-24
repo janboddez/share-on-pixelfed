@@ -24,6 +24,9 @@ After activation, head over to *Settings > Share on Pixelfed* to authorize WordP
 More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
 
 == Changelog ==
+= 0.6 =
+Add "first image" (rather than Featured Image) option.
+
 = 0.5 =
 More robust instance URL handling. Reset client details after instance switch.
 
