@@ -167,7 +167,6 @@ class Options_Handler {
 						// Forget client ID and secret.
 						$this->options['pixelfed_client_id']     = '';
 						$this->options['pixelfed_client_secret'] = '';
-
 					}
 				} else {
 					// Invalid URL. Display error message.
