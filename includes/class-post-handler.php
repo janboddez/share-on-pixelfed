@@ -268,7 +268,7 @@ class Post_Handler {
 			$thumb_id = get_post_thumbnail_id( $post_id );
 
 			// Then, grab the "large" image.
-			$image = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
+			$image = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
 
 			if ( ! empty( $image[0] ) ) {
 				$url = $image[0];
