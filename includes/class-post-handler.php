@@ -154,17 +154,6 @@ class Post_Handler {
 			return;
 		}
 
-		if ( isset( $this->options['use_first_image'] ) && $this->options['use_first_image'] ) {
-			// Using first image rather than post thumbnail.
-			if ( ! $this->has_images( $post ) ) {
-				// No images.
-				return;
-			}
-		} elseif ( ! has_post_thumbnail( $post->ID ) ) {
-			// No featured image.
-			return;
-		}
-
 		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
 
 		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
@@ -204,6 +193,14 @@ class Post_Handler {
 			return;
 		}
 
+		// Upload image.
+		$media_id = $this->upload_thumbnail( $post->ID );
+
+		if ( empty( $media_id ) ) {
+			// Something went wrong uploading the image.
+			return;
+		}
+
 		$status = wp_strip_all_tags( get_the_title( $post->ID ) ) . ' ' . esc_url_raw( get_permalink( $post->ID ) );
 		$status = apply_filters( 'share_on_pixelfed_status', $status, $post );
 
@@ -214,14 +211,6 @@ class Post_Handler {
 				'visibility' => 'public', // Required (?) by Pixelfed.
 			)
 		);
-
-		// Upload image.
-		$media_id = $this->upload_thumbnail( $post->ID );
-
-		if ( empty( $media_id ) ) {
-			// Something went wrong uploading the image.
-			return;
-		}
 
 		// Handle after `http_build_query()`, as apparently the API
 		// doesn't like numbers for query string array keys.
@@ -237,7 +226,7 @@ class Post_Handler {
 				// same reason.
 				'data_format' => 'body',
 				'body'        => $query_string,
-				'timeout'     => 30,
+				'timeout'     => 20,
 			)
 		);
 
@@ -269,13 +258,27 @@ class Post_Handler {
 	 * @return string|null Unique media ID, or nothing on failure.
 	 */
 	private function upload_thumbnail( $post_id ) {
-		if ( has_post_thumbnail( $post_id ) ) {
-			$thumb_id  = get_post_thumbnail_id( $post_id );
-			$url       = wp_get_attachment_url( $thumb_id );
+		$file_path = '';
+
+		if ( isset( $this->options['use_first_image'] ) && $this->options['use_first_image'] ) {
+			// Using first image rather than post thumbnail.
+			$file_path = $this->find_first_image( $post_id );
+		} elseif ( has_post_thumbnail( $post_id ) ) {
+			// Get post thumbnail (i.e., Featured Image).
+			$thumb_id = get_post_thumbnail_id( $post_id );
+
+			// Then, grab the "large" image.
+			$image = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
+
+			if ( ! empty( $image[0] ) ) {
+				$url = $image[0];
+			} else {
+				// Get the original image instead.
+				$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
+			}
+
 			$uploads   = wp_upload_dir();
 			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-		} else {
-			$file_path = $this->find_first_image( $post_id );
 		}
 
 		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
@@ -303,7 +306,7 @@ class Post_Handler {
 				),
 				'data_format' => 'body',
 				'body'        => $body,
-				'timeout'     => 30,
+				'timeout'     => 20,
 			)
 		);
 
@@ -323,6 +326,53 @@ class Post_Handler {
 		// Provided debugging's enabled, let's store the (somehow faulty)
 		// response.
 		error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+	}
+
+	/**
+	 * Returns the file path of the first image inside a post's content.
+	 *
+	 * @since 0.6.0
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return string|null File path, or nothing on failure.
+	 */
+	public function find_first_image( $post_id ) {
+		$post = get_post( $post_id );
+
+		// Assumes `src` value is wrapped in quotes. This will almost always be
+		// the case.
+		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
+
+		if ( empty( $matches[1] ) ) {
+			return;
+		}
+
+		foreach ( $matches[1] as $match ) {
+			// Convert URL back to attachment ID.
+			$image_id = attachment_url_to_postid( $match );
+
+			if ( 0 === $image_id ) {
+				// Unknown to WordPress.
+				continue;
+			}
+
+			// Then, grab the "large" image.
+			$image = wp_get_attachment_image_src( $image_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
+
+			if ( ! empty( $image[0] ) ) {
+				$url = $image[0];
+			} else {
+				// Get the original image instead.
+				$url = wp_get_attachment_url( $image_id ); // Original image URL.
+			}
+
+			// Convert URL to file path.
+			$uploads   = wp_upload_dir();
+			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+
+			return $file_path;
+		}
 	}
 
 	/**
@@ -355,53 +405,6 @@ class Post_Handler {
 		}
 
 		return false;
-	}
-
-	/**
-	 * Returns the file path of the first image inside a post's content.
-	 *
-	 * @since 0.6.0
-	 *
-	 * @param int $post_id Post ID.
-	 *
-	 * @return string|null File path, or nothing on failure.
-	 */
-	private function find_first_image( $post_id ) {
-		$post = get_post( $post_id );
-
-		// Assumes `src` value is wrapped in quotes. This will almost always be
-		// the case.
-		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
-
-		if ( empty( $matches[1] ) ) {
-			return;
-		}
-
-		foreach ( $matches[1] as $match ) {
-			// Convert URL back to attachment ID.
-			$image_id = attachment_url_to_postid( $match );
-
-			if ( 0 === $image_id ) {
-				// Unknown to WordPress.
-				continue;
-			}
-
-			// Then, grab the "large" image.
-			$image = wp_get_attachment_image_src( $image_id, 'large' );
-
-			if ( ! empty( $image[0] ) ) {
-				$url = $image[0];
-			} else {
-				// Get the original image instead.
-				$url = wp_get_attachment_url( $image_id );
-			}
-
-			// Convert URL to file path.
-			$uploads   = wp_upload_dir();
-			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-
-			return $file_path;
-		}
 	}
 
 	/**
