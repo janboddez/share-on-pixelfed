@@ -366,9 +366,12 @@ class Post_Handler {
 			}
 
 			// Then, grab the "large" image.
-			$image = wp_get_attachment_image_src( $image_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
+			$image   = wp_get_attachment_image_src( $image_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
+			$uploads = wp_upload_dir();
 
-			if ( ! empty( $image[0] ) ) {
+			if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
+				// Found a "large" thumbnail that lives on our own site (and not,
+				// e.g., a CDN).
 				$url = $image[0];
 			} else {
 				// Get the original image instead.
@@ -376,7 +379,6 @@ class Post_Handler {
 			}
 
 			// Convert URL to file path.
-			$uploads   = wp_upload_dir();
 			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
 
 			return $file_path;
