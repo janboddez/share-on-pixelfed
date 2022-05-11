@@ -274,16 +274,18 @@ class Post_Handler {
 			$thumb_id = get_post_thumbnail_id( $post_id );
 
 			// Then, grab the "large" image.
-			$image = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
+			$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
+			$uploads = wp_upload_dir();
 
-			if ( ! empty( $image[0] ) ) {
+			if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
+				// Found a "large" thumbnail that lives on our own site (and not,
+				// e.g., a CDN).
 				$url = $image[0];
 			} else {
 				// Get the original image instead.
 				$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
 			}
 
-			$uploads   = wp_upload_dir();
 			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
 		}
 
