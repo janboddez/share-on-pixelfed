@@ -164,38 +164,46 @@ class Post_Handler {
 
 		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
 			// Disabled for this post.
-			return;
-		}
-
-		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
-			// Prevent duplicate statuses.
+			error_log( "[Share on Pixelfed] Sharing is disabled for the post with ID {$post->ID}." );
 			return;
 		}
 
 		if ( 'publish' !== $new_status ) {
 			// Status is something other than `publish`.
+			error_log( "[Share on Pixelfed] The post with ID {$post->ID} isn't yet (or no longer) published. Skipping." );
+			return;
+		}
+
+		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
+			// Prevent duplicate statuses.
+			error_log( "[Share on Pixelfed] The post with ID {$post->ID} was shared before. Skipping." );
 			return;
 		}
 
 		if ( post_password_required( $post ) ) {
 			// Post is password-protected.
+			error_log( "[Share on Pixelfed] The post with ID {$post->ID} is password protected. Skipping." );
 			return;
 		}
 
 		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
 			// Unsupported post type.
+			error_log( "[Share on Pixelfed] The post with ID {$post->ID} is of an unsupported post type. Skipping." );
 			return;
 		}
 
 		if ( empty( $this->options['pixelfed_host'] ) ) {
+			error_log( "[Share on Pixelfed] Missing instance setting." );
 			return;
 		}
 
 		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
+			error_log( "[Share on Pixelfed] Invalid instance URL." );
 			return;
 		}
 
 		if ( empty( $this->options['pixelfed_access_token'] ) ) {
+			error_log( "[Share on Pixelfed] Missing access token." );
 			return;
 		}
 
@@ -293,6 +301,7 @@ class Post_Handler {
 
 		if ( ! is_file( $file_path ) ) {
 			// File doesn't seem to exist.
+			error_log( "[Share on Pixelfed] No such file exists ({$file_path})." );
 			return;
 		}
 
@@ -353,6 +362,7 @@ class Post_Handler {
 		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
 
 		if ( empty( $matches[1] ) ) {
+			error_log( "[Share on Pixelfed] Couldn't find a valid `<img>` tag." );
 			return;
 		}
 
