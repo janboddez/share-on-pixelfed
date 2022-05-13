@@ -289,12 +289,17 @@ class Post_Handler {
 				// Found a "large" thumbnail that lives on our own site (and not,
 				// e.g., a CDN).
 				$url = $image[0];
+				error_log( "[Share on Pixelfed] Found {$url}." );
+
 			} else {
 				// Get the original image instead.
 				$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
+				error_log( "[Share on Pixelfed] Found {$url}." );
 			}
 
 			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+		} else {
+			error_log( "[Share on Pixelfed] No Featured Image set for the post with ID {$post_id}." );
 		}
 
 		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
