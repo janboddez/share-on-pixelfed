@@ -28,7 +28,15 @@ class Options_Handler {
 		'user_request',
 		'oembed_cache',
 		'wp_block',
-		'coblocks_pattern', // Not WordPress', but CoBlocks'.
+		'wp_global_styles',
+		'wp_template',
+		'wp_template_part',
+		'wp_navigation',
+		'jp_mem_plan',
+		'jp_pay_order',
+		'jp_pay_product',
+		'coblocks_pattern',
+		'genesis_custom_block',
 	);
 
 	/**
@@ -46,6 +54,9 @@ class Options_Handler {
 		'pixelfed_token_expiry'  => '',
 		'post_types'             => array(),
 		'use_first_image'        => false,
+		'pixelfed_username'      => '',
+		'delay_sharing'          => 0,
+		'micropub_compat'        => false,
 	);
 
 	/**
@@ -127,12 +138,6 @@ class Options_Handler {
 			}
 		}
 
-		$this->options['use_first_image'] = false;
-
-		if ( isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ) {
-			$this->options['use_first_image'] = true;
-		}
-
 		if ( isset( $settings['pixelfed_host'] ) ) {
 			// There are two options here: either the field is empty, and then
 			// we'll remove the stored value but otherwise don't do much, or it
@@ -158,8 +163,8 @@ class Options_Handler {
 						$this->options['pixelfed_host'] = untrailingslashit( $pixelfed_host );
 
 						// Someone's switched instances. Delete tokens. Note
-						// that we can't remotely revoke tokens (which last 15
-						// days).
+						// that we cannot remotely revoke tokens (which last 15
+						// days)!
 						$this->options['pixelfed_access_token']  = '';
 						$this->options['pixelfed_refresh_token'] = '';
 						$this->options['pixelfed_token_expiry']  = '';
@@ -178,6 +183,18 @@ class Options_Handler {
 				}
 			}
 		}
+
+		$this->options['use_first_image'] = false;
+
+		if ( isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ) {
+			$this->options['use_first_image'] = true;
+		}
+
+		if ( isset( $settings['delay_sharing'] ) && ctype_digit( $settings['delay_sharing'] ) ) {
+			$this->options['delay_sharing'] = (int) $settings['delay_sharing'];
+		}
+
+		$this->options['micropub_compat'] = isset( $settings['micropub_compat'] ) ? true : false;
 
 		// Updated settings.
 		return $this->options;
@@ -233,6 +250,18 @@ class Options_Handler {
 						</ul>
 						<p class="description"><?php esc_html_e( 'Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)', 'share-on-pixelfed' ); ?></p></td>
 					</tr>
+					<tr valign="top">
+						<th scope="row"><label for="share_on_pixelfed_settings[delay_sharing]"><?php esc_html_e( 'Delayed Sharing', 'share-on-pixelfed' ); ?></label></th>
+						<td><input type="number" id="share_on_pixelfed_settings[delay_sharing]" name="share_on_pixelfed_settings[delay_sharing]" value="<?php echo esc_attr( isset( $this->options['delay_sharing'] ) ? $this->options['delay_sharing'] : 0 ); ?>" />
+						<p class="description"><?php esc_html_e( 'The time, in seconds, WordPress should delay sharing after a post is first published. (Setting this to, e.g., &ldquo;300&rdquo;&mdash;that&rsquo;s 5 minutes&mdash;might resolve issues with image uploads.)', 'share-on-pixelfed' ); ?></p></td>
+					</tr>
+					<?php if ( class_exists( 'Micropub_Endpoint' ) ) : ?>
+						<tr valign="top">
+							<th scope="row"><?php esc_html_e( 'Micropub', 'share-on-pixelfed' ); ?></label></th>
+							<td><label><input type="checkbox" id="share_on_pixelfed_settings[micropub_compat]" name="share_on_pixelfed_settings[micropub_compat]" value="1" <?php checked( ! empty( $this->options['micropub_compat'] ) ); ?> /> <?php esc_html_e( 'Add syndication target', 'share-on-pixelfed' ); ?></label>
+							<p class="description"><?php esc_html_e( '(Experimental) Add &ldquo;Pixelfed&rdquo; as a Micropub syndication target.', 'share-on-pixelfed' ); ?></p></td>
+						</tr>
+					<?php endif; ?>
 				</table>
 				<p class="submit"><?php submit_button( __( 'Save Changes' ), 'primary', 'submit', false ); ?></p>
 			</form>
@@ -477,12 +506,63 @@ class Options_Handler {
 			error_log( '[Share on Pixelfed] ' . __( 'Authorization successful.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
+			$this->verify_token(); // Called merely to store a username.
+
 			return true;
 		} else {
 			error_log( '[Share on Pixelfed] Authorization failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		return false;
+	}
+
+	/**
+	 * Verifies stored access token. Used solely, for now, to fetch a username.
+	 *
+	 * @since 0.7.0
+	 */
+	public function verify_token() {
+		if ( empty( $this->options['pixelfed_host'] ) ) {
+			return;
+		}
+
+		if ( empty( $this->options['pixelfed_access_token'] ) ) {
+			return;
+		}
+
+		// Verify the current access token.
+		$response = wp_remote_get(
+			esc_url_raw( $this->options['pixelfed_host'] ) . '/api/v1/accounts/verify_credentials',
+			array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $this->options['pixelfed_access_token'],
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			return;
+		}
+
+		if ( in_array( wp_remote_retrieve_response_code( $response ), array( 401, 403 ), true ) ) {
+			// The current access token has somehow become invalid. Forget it.
+			$this->options['pixelfed_access_token'] = '';
+			update_option( 'share_on_pixelfed_settings', $this->options );
+			return;
+		}
+
+		// Store username.
+		$account = json_decode( $response['body'] );
+
+		if ( isset( $account->username ) ) {
+			if ( empty( $this->options['pixelfed_username'] ) || $account->username !== $this->options['pixelfed_username'] ) {
+				$this->options['pixelfed_username'] = $account->username;
+				update_option( 'share_on_pixelfed_settings', $this->options );
+			}
+		} else {
+			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+		}
 	}
 
 	/**
@@ -536,66 +616,6 @@ class Options_Handler {
 			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
-		return false;
-	}
-
-	/**
-	 * Revokes WordPress' access to Pixelfed.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @return boolean If access was revoked.
-	 */
-	private function revoke_access() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_host'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_access_token'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_client_id'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_client_secret'] ) ) {
-			return false;
-		}
-
-		// Revoke access.
-		$response = wp_remote_post(
-			esc_url_raw( $this->options['pixelfed_host'] ) . '/oauth/revoke',
-			array(
-				'body' => array(
-					'client_id'     => $this->options['pixelfed_client_id'],
-					'client_secret' => $this->options['pixelfed_client_secret'],
-					'token'         => $this->options['pixelfed_access_token'],
-				),
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] Revoking access failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
-			return false;
-		}
-
-		if ( 200 === wp_remote_retrieve_response_code( $response ) ) {
-			// Success. Delete access token.
-			$this->options['pixelfed_access_token'] = '';
-			error_log( '[Share on Pixelfed] ' . __( 'Access revoked.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			update_option( 'share_on_pixelfed_settings', $this->options );
-
-			return true;
-		} else {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
-		}
-
-		// Something went wrong.
 		return false;
 	}
 

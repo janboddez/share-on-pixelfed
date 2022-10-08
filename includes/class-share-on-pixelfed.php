@@ -76,6 +76,12 @@ class Share_On_Pixelfed {
 		add_action( 'plugins_loaded', array( $this, 'activate' ) );
 
 		register_deactivation_hook( dirname( dirname( __FILE__ ) ) . '/share-on-pixelfed.php', array( $this, 'deactivate' ) );
+
+		$options = $this->options_handler->get_options();
+
+		if ( ! empty( $options['micropub_compat'] ) ) {
+			Micropub_Compat::register();
+		}
 	}
 
 	/**

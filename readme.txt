@@ -25,6 +25,9 @@ After activation, head over to *Settings > Share on Pixelfed* to authorize WordP
 More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
 
 == Changelog ==
+= 0.7.0 =
+Add Micropub syndication.
+
 = 0.6.1 =
 Add filter to make sharing opt-in.
 
