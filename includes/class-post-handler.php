@@ -471,6 +471,10 @@ class Post_Handler {
 			return;
 		}
 
+		if ( empty( $this->options['post_types'] ) ) {
+			return;
+		}
+
 		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
 			// Unsupported post type.
 			return;
