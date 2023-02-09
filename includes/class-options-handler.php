@@ -21,14 +21,6 @@ class Options_Handler {
 	const DEFAULT_POST_TYPES = array(
 		'page',
 		'attachment',
-		'revision',
-		'nav_menu_item',
-		'custom_css',
-		'customize_changeset',
-		'user_request',
-		'oembed_cache',
-		'wp_block',
-		'coblocks_pattern', // Not WordPress', but CoBlocks'.
 	);
 
 	/**
@@ -114,10 +106,8 @@ class Options_Handler {
 
 		if ( isset( $settings['post_types'] ) && is_array( $settings['post_types'] ) ) {
 			// Post types considered valid.
-			$supported_post_types = array_diff(
-				get_post_types(),
-				self::DEFAULT_POST_TYPES
-			);
+			$supported_post_types = (array) apply_filters( 'share_on_pixelfed_post_types', get_post_types( array( 'public' => true ) ) );
+			$supported_post_types = array_diff( $supported_post_types, self::DEFAULT_POST_TYPES );
 
 			foreach ( $settings['post_types'] as $post_type ) {
 				if ( in_array( $post_type, $supported_post_types, true ) ) {
@@ -134,48 +124,35 @@ class Options_Handler {
 		}
 
 		if ( isset( $settings['pixelfed_host'] ) ) {
-			// There are two options here: either the field is empty, and then
-			// we'll remove the stored value but otherwise don't do much, or it
-			// a (possibly invalid) URL of sorts, and then we'll either store it
-			// or display an error message.
-
-			$pixelfed_host = untrailingslashit( trim( $settings['pixelfed_host'] ) );
+			// Clean up and sanitize the user-submitted URL.
+			$pixelfed_host = $this->clean_url( $settings['pixelfed_host'] );
 
 			if ( '' === $pixelfed_host ) {
 				// Removing the instance URL. Might be done to temporarily
-				// disable crossposting. Let's not revoke access just yet.
+				// disable crossposting. Let's not "revoke access" just yet.
 				$this->options['pixelfed_host'] = '';
+			} elseif ( wp_http_validate_url( $pixelfed_host ) ) {
+				if ( $pixelfed_host !== $this->options['pixelfed_host'] ) {
+					// Updated URL. Forget access token.
+					$this->options['pixelfed_access_token']  = '';
+					$this->options['pixelfed_refresh_token'] = '';
+					$this->options['pixelfed_token_expiry']  = '';
+
+					// Then, save the new URL.
+					$this->options['pixelfed_host'] = esc_url_raw( $pixelfed_host );
+
+					// Forget client ID and secret. A new client ID and
+					// secret will be requested next time the page loads.
+					$this->options['pixelfed_client_id']     = '';
+					$this->options['pixelfed_client_secret'] = '';
+				}
 			} else {
-				if ( 0 !== strpos( $pixelfed_host, 'https://' ) && 0 !== strpos( $pixelfed_host, 'http://' ) ) {
-					// Missing protocol. Try adding `https://`.
-					$pixelfed_host = 'https://' . $pixelfed_host;
-				}
-
-				if ( wp_http_validate_url( $pixelfed_host ) ) {
-					// We should only update the URL (and forget all tokens) if
-					// it was actually changed.
-					if ( $pixelfed_host !== $this->options['pixelfed_host'] ) {
-						$this->options['pixelfed_host'] = untrailingslashit( $pixelfed_host );
-
-						// Someone's switched instances. Delete tokens. Note
-						// that we can't remotely revoke tokens (which last 15
-						// days).
-						$this->options['pixelfed_access_token']  = '';
-						$this->options['pixelfed_refresh_token'] = '';
-						$this->options['pixelfed_token_expiry']  = '';
-
-						// Forget client ID and secret.
-						$this->options['pixelfed_client_id']     = '';
-						$this->options['pixelfed_client_secret'] = '';
-					}
-				} else {
-					// Invalid URL. Display error message.
-					add_settings_error(
-						'share-on-pixelfed-pixelfed-host',
-						'invalid-url',
-						esc_html__( 'Please provide a valid URL.', 'share-on-pixelfed' )
-					);
-				}
+				// Invalid URL. Display error message.
+				add_settings_error(
+					'share-on-pixelfed-pixelfed-host',
+					'invalid-url',
+					esc_html__( 'Please provide a valid URL.', 'share-on-pixelfed' )
+				);
 			}
 		}
 
@@ -200,10 +177,8 @@ class Options_Handler {
 				settings_fields( 'share-on-pixelfed-settings-group' );
 
 				// Post types considered valid.
-				$supported_post_types = array_diff(
-					get_post_types(),
-					self::DEFAULT_POST_TYPES
-				);
+				$supported_post_types = (array) apply_filters( 'share_on_pixelfed_post_types', get_post_types( array( 'public' => true ) ) );
+				$supported_post_types = array_diff( $supported_post_types, self::DEFAULT_POST_TYPES );
 				?>
 				<table class="form-table">
 					<tr valign="top">
@@ -307,7 +282,7 @@ class Options_Handler {
 										admin_url( 'options-general.php' )
 									)
 								),
-								esc_html__( 'Revoke Access', 'share-on-pixelfed' )
+								esc_html__( 'Forget access token', 'share-on-pixelfed' )
 							);
 							?>
 							<?php
@@ -540,66 +515,6 @@ class Options_Handler {
 	}
 
 	/**
-	 * Revokes WordPress' access to Pixelfed.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @return boolean If access was revoked.
-	 */
-	private function revoke_access() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_host'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_access_token'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_client_id'] ) ) {
-			return false;
-		}
-
-		if ( empty( $this->options['pixelfed_client_secret'] ) ) {
-			return false;
-		}
-
-		// Revoke access.
-		$response = wp_remote_post(
-			esc_url_raw( $this->options['pixelfed_host'] ) . '/oauth/revoke',
-			array(
-				'body' => array(
-					'client_id'     => $this->options['pixelfed_client_id'],
-					'client_secret' => $this->options['pixelfed_client_secret'],
-					'token'         => $this->options['pixelfed_access_token'],
-				),
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] Revoking access failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
-			return false;
-		}
-
-		if ( 200 === wp_remote_retrieve_response_code( $response ) ) {
-			// Success. Delete access token.
-			$this->options['pixelfed_access_token'] = '';
-			error_log( '[Share on Pixelfed] ' . __( 'Access revoked.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			update_option( 'share_on_pixelfed_settings', $this->options );
-
-			return true;
-		} else {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
-		}
-
-		// Something went wrong.
-		return false;
-	}
-
-	/**
 	 * Requests an access token refresh before the current token expires.
 	 *
 	 * Normally runs once a day.
@@ -681,5 +596,49 @@ class Options_Handler {
 	 */
 	public function get_options() {
 		return $this->options;
+	}
+
+	/**
+	 * Preps user-submitted instance URLs for validation.
+	 *
+	 * @since 0.7.0
+	 *
+	 * @param  string $url Input URL.
+	 * @return string      Sanitized URL, or an empty string on failure.
+	 */
+	protected function clean_url( $url ) {
+		$url = untrailingslashit( trim( $url ) );
+
+		// So, it looks like `wp_parse_url()` always expects a protocol.
+		if ( 0 === strpos( $url, '//' ) ) {
+			$url = 'https:' . $url;
+		}
+
+		if ( 0 !== strpos( $url, 'https://' ) && 0 !== strpos( $url, 'http://' ) ) {
+			$url = 'https://' . $url;
+		}
+
+		// Take apart, then reassemble the URL, and drop anything (a path, query
+		// string, etc.) beyond the host.
+		$parsed_url = wp_parse_url( $url );
+
+		if ( empty( $parsed_url['host'] ) ) {
+			// Invalid URL.
+			return '';
+		}
+
+		if ( ! empty( $parsed_url['scheme'] ) ) {
+			$url = $parsed_url['scheme'] . ':';
+		} else {
+			$url = 'https:';
+		}
+
+		$url .= '//' . $parsed_url['host'];
+
+		if ( ! empty( $parsed_url['port'] ) ) {
+			$url .= ':' . $parsed_url['port'];
+		}
+
+		return sanitize_url( $url );
 	}
 }

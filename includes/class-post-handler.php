@@ -39,6 +39,7 @@ class Post_Handler {
 	 * @since 0.4.0
 	 */
 	public function register() {
+		add_action( 'rest_api_init', array( $this, 'register_meta' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 
 		add_action( 'transition_post_status', array( $this, 'update_meta' ), 11, 3 );
@@ -46,6 +47,27 @@ class Post_Handler {
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'wp_ajax_share_on_pixelfed_unlink_url', array( $this, 'unlink_url' ) );
+	}
+
+	/**
+	 * Register `_share_on_pixelfed_url` meta for use with the REST API.
+	 *
+	 * @since 0.7.0
+	 */
+	public function register_meta() {
+		$post_types = (array) $this->options['post_types'];
+
+		foreach ( $post_types as $post_type ) {
+			register_post_meta(
+				$post_type,
+				'_share_on_pixelfed_url',
+				array(
+					'single'       => true,
+					'show_in_rest' => true,
+					'type'         => 'string',
+				)
+			);
+		}
 	}
 
 	/**
@@ -105,6 +127,14 @@ class Post_Handler {
 				<a href="#" class="unlink"><?php esc_html_e( 'Unlink', 'share-on-pixelfed' ); ?></a>
 			</p>
 			<?php
+		else :
+			$error_message = get_post_meta( $post->ID, '_share_on_pixelfed_error', true );
+
+			if ( '' !== $error_message ) :
+				?>
+				<p class="description"><i><?php echo esc_html( $error_message ); ?></i></p>
+				<?php
+			endif;
 		endif;
 	}
 
@@ -243,11 +273,14 @@ class Post_Handler {
 		}
 
 		// Decode JSON, suppressing possible formatting errors.
-		$status = @json_decode( $response['body'] );
+		$status = json_decode( $response['body'] );
 
-		if ( ! empty( $status->url ) && post_type_supports( $post->post_type, 'custom-fields' ) ) {
+		if ( ! empty( $status->url ) ) {
+			delete_post_meta( $post->ID, '_share_on_pixelfed_error' );
 			update_post_meta( $post->ID, '_share_on_pixelfed_url', $status->url );
-		} else {
+		} elseif ( ! empty( $status->error ) ) {
+			update_post_meta( $post->ID, '_share_on_pixelfed_error', sanitize_text_field( $status->error ) );
+
 			// Provided debugging's enabled, let's store the (somehow faulty)
 			// response.
 			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
@@ -266,29 +299,28 @@ class Post_Handler {
 	private function upload_thumbnail( $post_id ) {
 		$file_path = '';
 
-		if ( isset( $this->options['use_first_image'] ) && $this->options['use_first_image'] ) {
+		if ( ! empty( $this->options['use_first_image'] ) ) {
 			// Using first image rather than post thumbnail.
-			$file_path = $this->find_first_image( $post_id );
+			$thumb_id = $this->find_first_image( $post_id );
 		} elseif ( has_post_thumbnail( $post_id ) ) {
 			// Get post thumbnail (i.e., Featured Image).
 			$thumb_id = get_post_thumbnail_id( $post_id );
-
-			// Then, grab the "large" image.
-			$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
-			$uploads = wp_upload_dir();
-
-			if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
-				// Found a "large" thumbnail that lives on our own site (and not,
-				// e.g., a CDN).
-				$url = $image[0];
-			} else {
-				// Get the original image instead.
-				$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
-			}
-
-			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
 		}
 
+		// Then, grab the "large" image.
+		$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
+		$uploads = wp_upload_dir();
+
+		if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
+			// Found a "large" thumbnail that lives on our own site (and not,
+			// e.g., a CDN).
+			$url = $image[0];
+		} else {
+			// Get the original image instead.
+			$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
+		}
+
+		$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
 		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
 
 		if ( ! is_file( $file_path ) ) {
@@ -324,8 +356,7 @@ class Post_Handler {
 			return;
 		}
 
-		// Decode JSON, suppressing possible formatting errors.
-		$media = @json_decode( $response['body'] );
+		$media = json_decode( $response['body'] );
 
 		if ( ! empty( $media->id ) ) {
 			return $media->id;
@@ -341,9 +372,8 @@ class Post_Handler {
 	 *
 	 * @since 0.6.0
 	 *
-	 * @param int $post_id Post ID.
-	 *
-	 * @return string|null File path, or nothing on failure.
+	 * @param  int $post_id Post ID.
+	 * @return int|null     Image ID, or nothing on failure.
 	 */
 	public function find_first_image( $post_id ) {
 		$post = get_post( $post_id );
@@ -352,36 +382,26 @@ class Post_Handler {
 		// the case.
 		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
 
+
 		if ( empty( $matches[1] ) ) {
 			return;
 		}
 
 		foreach ( $matches[1] as $match ) {
+			$filename = pathinfo( $match, PATHINFO_FILENAME );
+			$original = preg_replace( '~-(?:\d+x\d+|scaled|rotated)$~', '', $filename ); // Strip dimensions, etc., off resized images.
+
+			$url = str_replace( $filename, $original, $match );
+
 			// Convert URL back to attachment ID.
-			$image_id = attachment_url_to_postid( $match );
+			$image_id = (int) attachment_url_to_postid( $url );
 
 			if ( 0 === $image_id ) {
 				// Unknown to WordPress.
 				continue;
 			}
 
-			// Then, grab the "large" image.
-			$image   = wp_get_attachment_image_src( $image_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $image_id ) );
-			$uploads = wp_upload_dir();
-
-			if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
-				// Found a "large" thumbnail that lives on our own site (and not,
-				// e.g., a CDN).
-				$url = $image[0];
-			} else {
-				// Get the original image instead.
-				$url = wp_get_attachment_url( $image_id ); // Original image URL.
-			}
-
-			// Convert URL to file path.
-			$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-
-			return $file_path;
+			return $image_id;
 		}
 	}
 
