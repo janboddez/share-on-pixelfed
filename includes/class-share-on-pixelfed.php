@@ -64,6 +64,16 @@ class Share_On_Pixelfed {
 
 		$this->post_handler = new Post_Handler( $this->options_handler );
 		$this->post_handler->register();
+
+		$options = $this->options_handler->get_options();
+
+		if ( ! empty( $options['micropub_compat'] ) ) {
+			Micropub_Compat::register();
+		}
+
+		if ( ! empty( $options['syn_links_compat'] ) ) {
+			Syn_Links_Compat::register();
+		}
 	}
 
 	/**

@@ -382,7 +382,6 @@ class Post_Handler {
 		// the case.
 		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
 
-
 		if ( empty( $matches[1] ) ) {
 			return;
 		}

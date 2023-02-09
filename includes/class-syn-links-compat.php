@@ -30,10 +30,10 @@ class Syn_Links_Compat {
 	 * @since 0.11.0
 	 */
 	public static function syndication_links( $urls, $object_id ) {
-		$mastodon_url = get_post_meta( $object_id, '_share_on_pixelfed_url', true );
+		$pixelfed_url = get_post_meta( $object_id, '_share_on_pixelfed_url', true );
 
-		if ( ! empty( $mastodon_url ) ) {
-			$urls[] = $mastodon_url;
+		if ( ! empty( $pixelfed_url ) ) {
+			$urls[] = $pixelfed_url;
 		}
 
 		return $urls;

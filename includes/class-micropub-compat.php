@@ -34,17 +34,17 @@ class Micropub_Compat {
 		$plugin  = Share_On_Pixelfed::get_instance();
 		$options = $plugin->get_options_handler()->get_options();
 
-		if ( empty( $options['mastodon_host'] ) ) {
+		if ( empty( $options['pixelfed_host'] ) ) {
 			return $syndicate_to;
 		}
 
-		if ( empty( $options['mastodon_username'] ) ) {
+		if ( empty( $options['pixelfed_username'] ) ) {
 			return $syndicate_to;
 		}
 
 		$syndicate_to[] = array(
-			'uid'  => "{$options['mastodon_host']}/@{$options['mastodon_username']}",
-			'name' => "Mastodon ({$options['mastodon_username']})",
+			'uid'  => "{$options['pixelfed_host']}/{$options['pixelfed_username']}",
+			'name' => "Pixelfed ({$options['pixelfed_username']})",
 		);
 
 		return $syndicate_to;
@@ -62,15 +62,15 @@ class Micropub_Compat {
 		$plugin  = Share_On_Pixelfed::get_instance();
 		$options = $plugin->get_options_handler()->get_options();
 
-		if ( empty( $options['mastodon_host'] ) ) {
+		if ( empty( $options['pixelfed_host'] ) ) {
 			return;
 		}
 
-		if ( empty( $options['mastodon_username'] ) ) {
+		if ( empty( $options['pixelfed_username'] ) ) {
 			return;
 		}
 
-		if ( in_array( "{$options['mastodon_host']}/{$options['mastodon_username']}", $synd_requested, true ) ) {
+		if ( in_array( "{$options['pixelfed_host']}/{$options['pixelfed_username']}", $synd_requested, true ) ) {
 			update_post_meta( $post_id, '_share_on_pixelfed', '1' );
 			delete_post_meta( $post_id, '_share_on_pixelfed_error' ); // Clear previous errors, if any.
 
