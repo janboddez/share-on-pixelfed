@@ -10,24 +10,13 @@ class Test_Options_Handler extends \WP_Mock\Tools\TestCase {
 	}
 
 	public function test_options_handler_register() {
-		$options = array(
-			'pixelfed_host'          => '',
-			'pixelfed_client_id'     => '',
-			'pixelfed_client_secret' => '',
-			'pixelfed_access_token'  => '',
-			'pixelfed_refresh_token' => '',
-			'pixelfed_token_expiry'  => '',
-			'post_types'             => array(),
-			'use_first_image'        => false,
-		);
-
 		\WP_Mock::userFunction( 'get_option', array(
 			'times'  => 1,
 			'args'   => array(
 				'share_on_pixelfed_settings',
-				$options,
+				\Share_On_Pixelfed\Options_Handler::DEFAULT_PLUGIN_OPTIONS,
 			),
-			'return' => $options,
+			'return' => \Share_On_Pixelfed\Options_Handler::DEFAULT_PLUGIN_OPTIONS,
 		) );
 
 		$options_handler = new \Share_On_Pixelfed\Options_Handler();
