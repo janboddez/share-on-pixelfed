@@ -28,6 +28,9 @@ class Options_Handler {
 		'post_types'             => array(),
 		'use_first_image'        => false,
 		'pixelfed_username'      => '',
+		'delay_sharing'          => 0,
+		'optin'                  => false,
+		'share_always'           => false,
 		'micropub_compat'        => false,
 		'syn_links_compat'       => false,
 	);
@@ -167,7 +170,6 @@ class Options_Handler {
 		return $this->options;
 	}
 
-
 	/**
 	 * Handles submitted "advanced" options.
 	 *
@@ -177,17 +179,19 @@ class Options_Handler {
 	 * @return array           Options to be stored.
 	 */
 	public function sanitize_advanced_settings( $settings ) {
-		$this->options['use_first_image'] = false;
-
-		if ( isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ) {
-			$this->options['use_first_image'] = true;
-		}
-
-		$this->options['micropub_compat']  = isset( $settings['micropub_compat'] ) ? true : false;
-		$this->options['syn_links_compat'] = isset( $settings['syn_links_compat'] ) ? true : false;
+		$options = array(
+			'use_first_image'  => isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ? true : false,
+			'optin'            => isset( $settings['optin'] ) ? true : false,
+			'share_always'     => isset( $settings['share_always'] ) ? true : false,
+			'delay_sharing'    => isset( $settings['delay_sharing'] ) && ctype_digit( $settings['delay_sharing'] )
+				? (int) $settings['delay_sharing']
+				: 0,
+			'micropub_compat'  => isset( $settings['micropub_compat'] ) ? true : false,
+			'syn_links_compat' => isset( $settings['syn_links_compat'] ) ? true : false,
+		);
 
 		// Updated settings.
-		return $this->options;
+		return array_merge( $this->options, $options );
 	}
 
 	/**
@@ -365,6 +369,21 @@ class Options_Handler {
 								<li><label><input type="radio" name="share_on_pixelfed_settings[use_first_image]" value="1" <?php checked( ! empty( $this->options['use_first_image'] ) ); ?>><?php esc_html_e( 'First', 'share-on-pixelfed' ); ?></label></li>
 							</ul>
 							<p class="description"><?php esc_html_e( 'Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)', 'share-on-pixelfed' ); ?></p></td>
+						</tr>
+						<tr valign="top">
+							<th scope="row"><label for="share_on_pixelfed_settings[delay_sharing]"><?php esc_html_e( 'Delayed Sharing', 'share-on-pixelfed' ); ?></label></th>
+							<td><input type="number" style="width: 6em;" id="share_on_pixelfed_settings[delay_sharing]" name="share_on_pixelfed_settings[delay_sharing]" value="<?php echo esc_attr( isset( $this->options['delay_sharing'] ) ? $this->options['delay_sharing'] : 0 ); ?>" />
+							<p class="description"><?php esc_html_e( 'The time, in seconds, WordPress should delay sharing after a post is first published. (Setting this to, e.g., &ldquo;300&rdquo;&mdash;that&rsquo;s 5 minutes&mdash;may resolve issues with image uploads.)', 'share-on-pixelfed' ); ?></p></td>
+						</tr>
+						<tr valign="top">
+							<th scope="row"><?php esc_html_e( 'Opt-In', 'share-on-pixelfed' ); ?></th>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[optin]" value="1" <?php checked( ! empty( $this->options['optin'] ) ); ?> /> <?php esc_html_e( 'Make syndication opt-in rather than opt-out', 'share-on-pixelfed' ); ?></label></td>
+						</tr>
+						<tr valign="top">
+							<th scope="row"><?php esc_html_e( 'Share Always', 'share-on-pixelfed' ); ?></th>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[share_always]" value="1" <?php checked( ! empty( $this->options['share_always'] ) ); ?> /> <?php esc_html_e( 'Always syndicate to Pixelfed', 'share-on-pixelfed' ); ?></label>
+							<?php /* translators: %s: link to the `share_on_pixelfed_enabled` documentation */ ?>
+							<p class="description"><?php printf( esc_html__( ' &ldquo;Force&rdquo; syndication, like when posting from a mobile app. For more fine-grained control, have a look at the %s filter hook.', 'share-on-pixelfed' ), '<a target="_blank" href="https://jan.boddez.net/wordpress/share-on-pixelfed#share_on_pixelfed_enabled"><code>share_on_pixelfed_enabled</code></a>' ); ?></p></td>
 						</tr>
 
 						<?php if ( class_exists( 'Micropub_Endpoint' ) ) : ?>

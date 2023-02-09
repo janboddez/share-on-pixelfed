@@ -39,12 +39,12 @@ class Post_Handler {
 	 * @since 0.4.0
 	 */
 	public function register() {
-		add_action( 'rest_api_init', array( $this, 'register_meta' ) );
-		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
-
 		add_action( 'transition_post_status', array( $this, 'update_meta' ), 11, 3 );
 		add_action( 'transition_post_status', array( $this, 'toot' ), 999, 3 );
+		add_action( 'share_on_pixelfed_post', array( $this, 'post_to_pixelfed' ) );
 
+		add_action( 'rest_api_init', array( $this, 'register_meta' ) );
+		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'wp_ajax_share_on_pixelfed_unlink_url', array( $this, 'unlink_url' ) );
 	}
@@ -100,9 +100,10 @@ class Post_Handler {
 	public function render_meta_box( $post ) {
 		wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' );
 
-		$check = array( '', '1' );
+		$enabled = ! empty( $this->options['optin'] );
+		$check   = array( '', '1' );
 
-		if ( apply_filters( 'share_on_pixelfed_optin', false ) ) {
+		if ( apply_filters( 'share_on_pixelfed_optin', $enabled ) ) {
 			$check = array( '1' ); // Make sharing opt-in.
 		}
 		?>
@@ -192,6 +193,10 @@ class Post_Handler {
 
 		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
 
+		if ( ! empty( $this->options['share_always'] ) ) {
+			$is_enabled = true;
+		}
+
 		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
 			// Disabled for this post.
 			return;
@@ -229,6 +234,70 @@ class Post_Handler {
 			return;
 		}
 
+		if ( ! empty( $this->options['delay_sharing'] ) ) {
+			// Since version 0.7.0, there's an option to "schedule" sharing
+			// rather than do everything inline.
+			wp_schedule_single_event(
+				time() + $this->options['delay_sharing'],
+				'share_on_pixelfed_post',
+				array( $post->ID )
+			);
+		} else {
+			// Share immediately.
+			$this->post_to_pixelfed( $post->ID );
+		}
+	}
+
+	/**
+	 * Shares a post on Pixelfed.
+	 *
+	 * @since 0.7.0
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	public function post_to_pixelfed( $post_id ) {
+		$post = get_post( $post_id );
+
+		// Let's rerun all of these checks, as something may have changed.
+		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
+
+		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post->ID ) ) {
+			// Disabled for this post.
+			return;
+		}
+
+		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
+			// Prevent duplicate toots.
+			return;
+		}
+
+		if ( 'publish' !== $post->post_status ) {
+			// Status is something other than `publish`.
+			return;
+		}
+
+		if ( post_password_required( $post ) ) {
+			// Post is password-protected.
+			return;
+		}
+
+		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
+			// Unsupported post type.
+			return;
+		}
+
+		if ( empty( $this->options['pixelfed_host'] ) ) {
+			return;
+		}
+
+		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
+			return;
+		}
+
+		if ( empty( $this->options['pixelfed_access_token'] ) ) {
+			return;
+		}
+
 		// Upload image.
 		$media_id = $this->upload_thumbnail( $post->ID );
 
@@ -237,8 +306,11 @@ class Post_Handler {
 			return;
 		}
 
-		$status = wp_strip_all_tags( get_the_title( $post->ID ) ) . ' ' . esc_url_raw( get_permalink( $post->ID ) );
-		$status = apply_filters( 'share_on_pixelfed_status', $status, $post );
+		$status  = wp_strip_all_tags(
+			html_entity_decode( get_the_title( $post->ID ), ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) // Avoid double-encoded HTML entities.
+		);
+		$status .= ' ' . esc_url_raw( get_permalink( $post->ID ) );
+		$status  = apply_filters( 'share_on_pixelfed_status', $status, $post );
 
 		// Encode, build query string.
 		$query_string = http_build_query(
@@ -248,8 +320,8 @@ class Post_Handler {
 			)
 		);
 
-		// Handle after `http_build_query()`, as apparently the API
-		// doesn't like numbers for query string array keys.
+		// Handle after `http_build_query()`, as apparently the API doesn't like
+		// numbers for query string array keys.
 		$query_string .= '&media_ids[]=' . rawurlencode( $media_id );
 
 		$response = wp_remote_post(
