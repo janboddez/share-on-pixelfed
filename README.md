@@ -8,7 +8,7 @@ By default, shared statuses look something like:
 My Awesome Post Title https://url.to/original-post/
 ```
 
-Pixelfed will not automatically turn that URL into a clickable link, but we can live with that. Posts without a Featured Image will not be shared. (The plugin currently doesn't look for other images inside the post, that is.)
+Pixelfed will ~~not~~ automatically turn that URL into a clickable link ~~but we can live with that~~. Posts without a Featured Image will not be shared. (The plugin currently doesn't look for other images inside the post, that is.)
 
 ## Custom Formatting
 If you'd rather format statuses differently, there's a `share_on_pixelfed_status` filter.
