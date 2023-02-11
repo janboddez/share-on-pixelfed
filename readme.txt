@@ -1,8 +1,8 @@
 === Share on Pixelfed ===
 Contributors: janboddez
 Tags: pixelfed, share, publicize, crosspost, fediverse
-Tested up to: 5.8
-Stable tag: 0.6.2
+Tested up to: 6.1
+Stable tag: 0.7.0
 License: GNU General Public License v3.0
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -25,6 +25,9 @@ After activation, head over to *Settings > Share on Pixelfed* to authorize WordP
 More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
 
 == Changelog ==
+= 0.7.0 =
+Add a whole bunch of options.
+
 = 0.6.1 =
 Add filter to make sharing opt-in.
 

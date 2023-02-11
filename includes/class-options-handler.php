@@ -24,7 +24,7 @@ class Options_Handler {
 		'pixelfed_client_secret' => '',
 		'pixelfed_access_token'  => '',
 		'pixelfed_refresh_token' => '',
-		'pixelfed_token_expiry'  => '',
+		'pixelfed_token_expiry'  => 0,
 		'post_types'             => array(),
 		'use_first_image'        => false,
 		'pixelfed_username'      => '',
@@ -61,7 +61,10 @@ class Options_Handler {
 	 * @since 0.1.0
 	 */
 	public function __construct() {
-		$this->options = get_option( 'share_on_pixelfed_settings', self::DEFAULT_PLUGIN_OPTIONS );
+		$this->options = array_merge(
+			self::DEFAULT_PLUGIN_OPTIONS,
+			get_option( 'share_on_pixelfed_settings', array() )
+		);
 	}
 
 	/**
@@ -146,7 +149,7 @@ class Options_Handler {
 					// Updated URL. Forget access token.
 					$this->options['pixelfed_access_token']  = '';
 					$this->options['pixelfed_refresh_token'] = '';
-					$this->options['pixelfed_token_expiry']  = '';
+					$this->options['pixelfed_token_expiry']  = 0;
 
 					// Then, save the new URL.
 					$this->options['pixelfed_host'] = esc_url_raw( $pixelfed_host );
@@ -269,7 +272,7 @@ class Options_Handler {
 							// Forget token(s).
 							$this->options['pixelfed_access_token']  = '';
 							$this->options['pixelfed_refresh_token'] = '';
-							$this->options['pixelfed_token_expiry']  = '';
+							$this->options['pixelfed_token_expiry']  = 0;
 
 							update_option( 'share_on_pixelfed_settings', $this->options );
 						}

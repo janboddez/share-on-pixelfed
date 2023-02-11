@@ -14,9 +14,9 @@ class Test_Options_Handler extends \WP_Mock\Tools\TestCase {
 			'times'  => 1,
 			'args'   => array(
 				'share_on_pixelfed_settings',
-				\Share_On_Pixelfed\Options_Handler::DEFAULT_PLUGIN_OPTIONS,
+				array(),
 			),
-			'return' => \Share_On_Pixelfed\Options_Handler::DEFAULT_PLUGIN_OPTIONS,
+			'return' => array(),
 		) );
 
 		$options_handler = new \Share_On_Pixelfed\Options_Handler();

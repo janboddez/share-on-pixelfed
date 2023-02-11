@@ -51,7 +51,7 @@ class Micropub_Compat {
 	}
 
 	/**
-	 * Triggers syndication to Mastodon.
+	 * Triggers syndication to Pixelfed.
 	 *
 	 * @param int   $post_id        Post ID.
 	 * @param array $synd_requested Selected syndication targets.

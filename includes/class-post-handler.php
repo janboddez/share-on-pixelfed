@@ -114,7 +114,7 @@ class Post_Handler {
 		<?php
 		$url = get_post_meta( $post->ID, '_share_on_pixelfed_url', true );
 
-		if ( '' !== $url && false !== wp_http_validate_url( $url ) ) :
+		if ( '' !== $url && wp_http_validate_url( $url ) ) :
 			$url_parts = wp_parse_url( $url );
 
 			$display_url  = '<span class="screen-reader-text">' . $url_parts['scheme'] . '://';
@@ -134,6 +134,14 @@ class Post_Handler {
 			if ( '' !== $error_message ) :
 				?>
 				<p class="description"><i><?php echo esc_html( $error_message ); ?></i></p>
+				<?php
+			else :
+				?>
+				<div style="margin-top: 0.75em;"><details>
+					<summary><label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label></summary>
+					<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"></textarea>
+					<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
+				</details></div>
 				<?php
 			endif;
 		endif;
@@ -168,11 +176,25 @@ class Post_Handler {
 			return;
 		}
 
-		if ( isset( $_POST['share_on_pixelfed'] ) && ! post_password_required( $post ) ) {
-			// If sharing enabled and post not password-protected.
+		if ( post_password_required( $post ) ) {
+			return;
+		}
+
+		if ( isset( $_POST['share_on_pixelfed'] ) ) {
+			// If sharing enabled.
 			update_post_meta( $post->ID, '_share_on_pixelfed', '1' );
 		} else {
 			update_post_meta( $post->ID, '_share_on_pixelfed', '0' );
+		}
+
+		if ( isset( $_POST['share_on_pixelfed_status'] ) ) {
+			$status = sanitize_textarea_field( wp_unslash( $_POST['share_on_pixelfed_status'] ) );
+		}
+
+		if ( ! empty( $status ) ) {
+			update_post_meta( $post->ID, '_share_on_pixelfed_status', $status );
+		} else {
+			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
 		}
 	}
 
@@ -299,16 +321,20 @@ class Post_Handler {
 		}
 
 		// Upload image.
-		$media_id = $this->upload_thumbnail( $post->ID );
+		$media_id = Image_Handler::upload_thumbnail( $post->ID );
 
 		if ( empty( $media_id ) ) {
 			// Something went wrong uploading the image.
 			return;
 		}
 
-		$status  = wp_strip_all_tags(
-			html_entity_decode( get_the_title( $post->ID ), ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) // Avoid double-encoded HTML entities.
-		);
+		$status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
+
+		if ( empty( $status ) ) {
+			$status = get_the_title( $post->ID );
+		}
+
+		$status  = wp_strip_all_tags( html_entity_decode( $status, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) ); // Avoid double-encoded HTML entities.
 		$status .= ' ' . esc_url_raw( get_permalink( $post->ID ) );
 		$status  = apply_filters( 'share_on_pixelfed_status', $status, $post );
 
@@ -348,6 +374,7 @@ class Post_Handler {
 		$status = json_decode( $response['body'] );
 
 		if ( ! empty( $status->url ) ) {
+			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
 			delete_post_meta( $post->ID, '_share_on_pixelfed_error' );
 			update_post_meta( $post->ID, '_share_on_pixelfed_url', $status->url );
 		} elseif ( ! empty( $status->error ) ) {
@@ -357,155 +384,6 @@ class Post_Handler {
 			// response.
 			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
 		}
-	}
-
-	/**
-	 * Uploads a post thumbnail and returns a (single) media ID.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @param int $post_id Post ID.
-	 *
-	 * @return string|null Unique media ID, or nothing on failure.
-	 */
-	private function upload_thumbnail( $post_id ) {
-		$file_path = '';
-
-		if ( ! empty( $this->options['use_first_image'] ) ) {
-			// Using first image rather than post thumbnail.
-			$thumb_id = $this->find_first_image( $post_id );
-		} elseif ( has_post_thumbnail( $post_id ) ) {
-			// Get post thumbnail (i.e., Featured Image).
-			$thumb_id = get_post_thumbnail_id( $post_id );
-		}
-
-		// Then, grab the "large" image.
-		$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
-		$uploads = wp_upload_dir();
-
-		if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
-			// Found a "large" thumbnail that lives on our own site (and not,
-			// e.g., a CDN).
-			$url = $image[0];
-		} else {
-			// Get the original image instead.
-			$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
-		}
-
-		$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
-
-		if ( ! is_file( $file_path ) ) {
-			// File doesn't seem to exist.
-			return;
-		}
-
-		$boundary = md5( time() );
-		$eol      = "\r\n";
-
-		$body  = '--' . $boundary . $eol;
-		$body .= 'Content-Disposition: form-data; name="file"; filename="' . basename( $file_path ) . '"' . $eol;
-		$body .= 'Content-Type: ' . mime_content_type( $file_path ) . $eol . $eol;
-		$body .= file_get_contents( $file_path ) . $eol; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$body .= '--' . $boundary . '--';
-
-		$response = wp_remote_post(
-			esc_url_raw( $this->options['pixelfed_host'] . '/api/v1/media' ),
-			array(
-				'headers'     => array(
-					'Authorization' => 'Bearer ' . $this->options['pixelfed_access_token'],
-					'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
-				),
-				'data_format' => 'body',
-				'body'        => $body,
-				'timeout'     => 20,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			// An error occurred.
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
-			return;
-		}
-
-		$media = json_decode( $response['body'] );
-
-		if ( ! empty( $media->id ) ) {
-			return $media->id;
-		}
-
-		// Provided debugging's enabled, let's store the (somehow faulty)
-		// response.
-		error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
-	}
-
-	/**
-	 * Returns the file path of the first image inside a post's content.
-	 *
-	 * @since 0.6.0
-	 *
-	 * @param  int $post_id Post ID.
-	 * @return int|null     Image ID, or nothing on failure.
-	 */
-	public function find_first_image( $post_id ) {
-		$post = get_post( $post_id );
-
-		// Assumes `src` value is wrapped in quotes. This will almost always be
-		// the case.
-		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
-
-		if ( empty( $matches[1] ) ) {
-			return;
-		}
-
-		foreach ( $matches[1] as $match ) {
-			$filename = pathinfo( $match, PATHINFO_FILENAME );
-			$original = preg_replace( '~-(?:\d+x\d+|scaled|rotated)$~', '', $filename ); // Strip dimensions, etc., off resized images.
-
-			$url = str_replace( $filename, $original, $match );
-
-			// Convert URL back to attachment ID.
-			$image_id = (int) attachment_url_to_postid( $url );
-
-			if ( 0 === $image_id ) {
-				// Unknown to WordPress.
-				continue;
-			}
-
-			return $image_id;
-		}
-	}
-
-	/**
-	 * Checks whether a post's content contains images.
-	 *
-	 * External images are ignored.
-	 *
-	 * @since 0.6.0
-	 *
-	 * @param WP_Post $post Post object.
-	 *
-	 * @return bool If the post content contains images.
-	 */
-	private function has_images( $post ) {
-		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
-
-		if ( empty( $matches[1] ) ) {
-			// No images here.
-			return false;
-		}
-
-		foreach ( $matches[1] as $match ) {
-			// Convert URL back to attachment ID.
-			$image_id = attachment_url_to_postid( $match );
-
-			if ( 0 !== $image_id ) {
-				// Image exists in WordPress media library.
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	/**

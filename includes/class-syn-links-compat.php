@@ -21,7 +21,7 @@ class Syn_Links_Compat {
 	}
 
 	/**
-	 * Adds the Mastodon URL to Syndication Links' list of URLs.
+	 * Adds the Pixelfed URL to Syndication Links' list of URLs.
 	 *
 	 * @param  array $urls      Syndication links.
 	 * @param  array $object_id The post we're gathering these links for.
