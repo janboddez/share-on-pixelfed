@@ -12,6 +12,15 @@ namespace Share_On_Pixelfed;
  */
 class Share_On_Pixelfed {
 	/**
+	 * Plugin version
+	 *
+	 * @since 0.7.0
+	 *
+	 * @var string PLUGIN_VERSION Current plugin version.
+	 */
+	const PLUGIN_VERSION = '0.7.0';
+
+	/**
 	 * This plugin's single instance.
 	 *
 	 * @since 0.4.0

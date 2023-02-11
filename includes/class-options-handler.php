@@ -77,6 +77,7 @@ class Options_Handler {
 		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_refresh_token' ), 11 );
 		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_verify_token' ) );
 		add_action( 'admin_post_share_on_pixelfed', array( $this, 'admin_post' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 	}
 
 	/**
@@ -443,6 +444,27 @@ class Options_Handler {
 			?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Loads (admin) scripts.
+	 *
+	 * @since 0.7.0
+	 *
+	 * @param string $hook_suffix Current WP-Admin page.
+	 */
+	public function enqueue_scripts( $hook_suffix ) {
+		if ( 'settings_page_share-on-pixelfed' !== $hook_suffix ) {
+			return;
+		}
+
+		// Enqueue JS.
+		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), Share_On_Pixelfed::PLUGIN_VERSION, true );
+		wp_localize_script(
+			'share-on-pixelfed',
+			'share_on_pixelfed_obj',
+			array( 'message' => esc_attr__( 'Are you sure you want to reset all settings?', 'share-on-pixelfed' ) ) // Confirmation message.
+		);
 	}
 
 	/**

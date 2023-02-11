@@ -19,6 +19,10 @@ jQuery( document ).ready( function ( $ ) {
 		} );
 	} );
 
+	$( '#share-on-pixelfed [for="share_on_pixelfed_status"]' ).click( function() {
+		$( '#share-on-pixelfed details' ).attr( 'open', 'open' );
+	} );
+
 	$( '.settings_page_share-on-pixelfed .button-reset-settings' ).click( function( e ) {
 		if ( ! confirm( share_on_pixelfed_obj.message ) ) {
 			e.preventDefault();

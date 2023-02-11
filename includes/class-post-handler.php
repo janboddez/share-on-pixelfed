@@ -135,15 +135,17 @@ class Post_Handler {
 				?>
 				<p class="description"><i><?php echo esc_html( $error_message ); ?></i></p>
 				<?php
-			else :
-				?>
-				<div style="margin-top: 0.75em;"><details>
-					<summary><label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label></summary>
-					<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"></textarea>
-					<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
-				</details></div>
-				<?php
 			endif;
+		endif;
+
+		if ( apply_filters( 'share_on_pixelfed_custom_status_field', false ) ) :
+			?>
+			<div style="margin-top: 0.75em;"><details>
+				<summary><label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label></summary>
+				<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"><?php echo esc_html( get_post_meta( $post->ID, '_share_on_pixelfed_status', true ) ); ?></textarea>
+				<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
+			</details></div>
+			<?php
 		endif;
 	}
 
@@ -428,37 +430,30 @@ class Post_Handler {
 	 * @param string $hook_suffix Current WP Admin page.
 	 */
 	public function enqueue_scripts( $hook_suffix ) {
-		if ( 'post-new.php' !== $hook_suffix && 'post.php' !== $hook_suffix ) {
-			// Not an "Edit Post" screen.
-			return;
+		if ( in_array( $hook_suffix, array( 'post-new.php', 'post.php' ), true ) ) {
+			global $post;
+
+			if ( empty( $post ) ) {
+				// Can't do much without a `$post` object.
+				return;
+			}
+
+			if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
+				// Unsupported post type.
+				return;
+			}
+
+			// Enqueue CSS and JS.
+			wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', dirname( __FILE__ ) ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
+			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
+			wp_localize_script(
+				'share-on-pixelfed',
+				'share_on_pixelfed_obj',
+				array(
+					'message' => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
+					'post_id' => $post->ID, // Pass current post ID to JS.
+				)
+			);
 		}
-
-		global $post;
-
-		if ( empty( $post ) ) {
-			// Can't do much without a `$post` object.
-			return;
-		}
-
-		if ( empty( $this->options['post_types'] ) ) {
-			return;
-		}
-
-		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
-			// Unsupported post type.
-			return;
-		}
-
-		// Enqueue CSS and JS.
-		wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', dirname( __FILE__ ) ), array(), '0.5.1' );
-		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.5.1', false );
-		wp_localize_script(
-			'share-on-pixelfed',
-			'share_on_pixelfed_obj',
-			array(
-				'message' => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
-				'post_id' => $post->ID, // Pass current post ID to JS.
-			)
-		);
 	}
 }
