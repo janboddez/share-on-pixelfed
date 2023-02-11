@@ -189,7 +189,7 @@ class Post_Handler {
 			update_post_meta( $post->ID, '_share_on_pixelfed', '0' );
 		}
 
-		if ( isset( $_POST['share_on_pixelfed_status'] ) ) {
+		if ( apply_filters( 'share_on_pixelfed_custom_status_field', false ) && isset( $_POST['share_on_pixelfed_status'] ) ) {
 			$status = sanitize_textarea_field( wp_unslash( $_POST['share_on_pixelfed_status'] ) );
 		}
 
