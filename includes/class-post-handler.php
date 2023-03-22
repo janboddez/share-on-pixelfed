@@ -62,9 +62,10 @@ class Post_Handler {
 				$post_type,
 				'_share_on_pixelfed_url',
 				array(
-					'single'       => true,
-					'show_in_rest' => true,
-					'type'         => 'string',
+					'single'        => true,
+					'show_in_rest'  => true,
+					'type'          => 'string',
+					'auth_callback' => '__return_true',
 				)
 			);
 		}
