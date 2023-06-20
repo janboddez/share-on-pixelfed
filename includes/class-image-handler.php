@@ -12,29 +12,55 @@ namespace Share_On_Pixelfed;
  */
 class Image_Handler {
 	/**
-	 * Uploads a post thumbnail and returns a (single) media ID.
+	 * Returns a post's first or featured image, with alt text (if any).
+	 *
+	 * @param  WP_Post $post Post object.
+	 * @return array         Attachment array.
+	 */
+	public static function get_image( $post ) {
+		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
+			->get_options_handler()
+			->get_options();
+
+		if ( ! empty( $options['use_first_image'] ) ) {
+			// Using first image rather than post thumbnail.
+			$thumb_id = static::find_first_image( $post->ID );
+		} elseif ( has_post_thumbnail( $post->ID ) ) {
+			// Get post thumbnail (i.e., Featured Image).
+			$thumb_id = get_post_thumbnail_id( $post->ID );
+		}
+
+		if ( empty( $thumb_id ) ) {
+			// Nothing to do.
+			return array( 0, '' );
+		}
+
+		// Always parse post content for images and alt text.
+		/** @todo: Do this _sooner_ and use its result for detecting the 1st image. */
+		$referenced_images = static::get_referenced_images( $post );
+
+		// Convert the single image ID into something of the format `array( $id, 'Alt text.' )`.
+		return static::add_alt_text( $thumb_id, $referenced_images );
+	}
+
+	/**
+	 * Uploads an image and returns a (single) media ID.
 	 *
 	 * @since 0.7.0
 	 *
-	 * @param  int $post_id Post ID.
-	 * @return string|null  Unique media ID, or nothing on failure.
+	 * @param  int    $thumb_id Image ID.
+	 * @param  string $alt      Alt text.
+	 * @param  int    $post_id  Post ID.
+	 * @return string|null      Unique media ID, or nothing on failure.
 	 */
-	public static function upload_thumbnail( $post_id ) {
+	public static function upload_thumbnail( $thumb_id, $alt = '', $post_id = 0 ) {
 		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
 			->get_options_handler()
 			->get_options();
 
 		$file_path = '';
 
-		if ( ! empty( $options['use_first_image'] ) ) {
-			// Using first image rather than post thumbnail.
-			$thumb_id = static::find_first_image( $post_id );
-		} elseif ( has_post_thumbnail( $post_id ) ) {
-			// Get post thumbnail (i.e., Featured Image).
-			$thumb_id = get_post_thumbnail_id( $post_id );
-		}
-
-		// Then, grab the "large" image.
+		// Grab the "large" image.
 		$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
 		$uploads = wp_upload_dir();
 
@@ -48,18 +74,11 @@ class Image_Handler {
 		}
 
 		$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id );
+		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id ); // We should deprecate this.
 
 		if ( ! is_file( $file_path ) ) {
 			// File doesn't seem to exist.
 			return;
-		}
-
-		// Fetch alt text.
-		$alt = get_post_meta( $thumb_id, '_wp_attachment_image_alt', true );
-
-		if ( '' === $alt ) {
-			$alt = wp_get_attachment_caption( $thumb_id ); // Fallback to caption.
 		}
 
 		$boundary = md5( time() );
@@ -67,7 +86,7 @@ class Image_Handler {
 
 		$body = '--' . $boundary . $eol;
 
-		if ( false !== $alt && '' !== $alt ) {
+		if ( '' !== $alt ) {
 			error_log( "[Share on Pixelfed] Found the following alt text for the attachment with ID $thumb_id: $alt" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 
 			// Send along an image description, because accessibility.
@@ -153,5 +172,82 @@ class Image_Handler {
 
 			return $thumb_id;
 		}
+	}
+
+	/**
+	 * Attempts to find and return in-post images and their alt text.
+	 *
+	 * @param  WP_Post $post Post object.
+	 * @return array         Image array.
+	 */
+	protected static function get_referenced_images( $post ) {
+		$images = array();
+
+		// Wrap post content in a dummy `div`, as there must (!) be a root-level
+		// element at all times.
+		$html = '<div>' . mb_convert_encoding( $post->post_content, 'HTML-ENTITIES', get_bloginfo( 'charset' ) ) . '</div>';
+
+		libxml_use_internal_errors( true );
+		$doc = new \DOMDocument();
+		$doc->loadHTML( $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		$xpath = new \DOMXPath( $doc );
+
+		foreach ( $xpath->query( '//img' ) as $node ) {
+			if ( ! $node->hasAttribute( 'src' ) || empty( $node->getAttribute( 'src' ) ) ) {
+				continue;
+			}
+
+			$src      = $node->getAttribute( 'src' );
+			$filename = pathinfo( $src, PATHINFO_FILENAME );
+			$original = preg_replace( '~-(?:\d+x\d+|scaled|rotated)$~', '', $filename ); // Strip dimensions, etc., off resized images.
+
+			$url = str_replace( $filename, $original, $src );
+
+			// Convert URL back to attachment ID.
+			$image_id = (int) attachment_url_to_postid( $url );
+
+			if ( 0 === $image_id ) {
+				// Unknown to WordPress.
+				continue;
+			}
+
+			if ( ! isset( $images[ $image_id ] ) || '' === $images[ $image_id ] ) {
+				// When an image is already present, overwrite it only if its
+				// "known" alt text is empty.
+				$images[ $image_id ] = $node->hasAttribute( 'alt' ) ? $node->getAttribute( 'alt' ) : '';
+			}
+		}
+
+		return $images;
+	}
+
+	/**
+	 * Returns alt text for a certain image.
+	 *
+	 * Looks through `$images` first, and falls back on what's stored in the
+	 * `wp_postmeta` table.
+	 *
+	 * @param  int   $image_id          ID of the image we want to upload.
+	 * @param  array $referenced_images In-post images and their alt attributes, to look through first.
+	 * @return array                    An array with the image ID as its key and this image's alt attributes as its value.
+	 */
+	protected static function add_alt_text( $image_id, $referenced_images ) {
+		if ( isset( $referenced_images[ $image_id ] ) && '' !== $referenced_images[ $image_id ] ) {
+			// This image was found inside the post, with alt text.
+			$alt = $referenced_images[ $image_id ];
+		} else {
+			// Fetch alt text from the `wp_postmeta` table.
+			$alt = get_post_meta( $image_id, '_wp_attachment_image_alt', true );
+
+			if ( '' === $alt ) {
+				$alt = wp_get_attachment_caption( $image_id ); // Fallback to caption. Might return `false`.
+			}
+		}
+
+		// Avoid double-encoded entities.
+		return array(
+			$image_id,
+			is_string( $alt ) ? html_entity_decode( $alt, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) : '',
+		);
 	}
 }

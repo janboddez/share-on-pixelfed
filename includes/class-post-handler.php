@@ -324,15 +324,19 @@ class Post_Handler {
 		}
 
 		// Upload image.
-		$media_id = Image_Handler::upload_thumbnail( $post->ID );
+		list( $image_id, $alt ) = Image_Handler::get_image( $post );
+		if ( empty( $image_id ) ) {
+			// Nothing to do.
+			return;
+		}
 
+		$media_id = Image_Handler::upload_thumbnail( $image_id, $alt, $post->ID );
 		if ( empty( $media_id ) ) {
 			// Something went wrong uploading the image.
 			return;
 		}
 
 		$status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
-
 		if ( empty( $status ) ) {
 			$status = get_the_title( $post->ID );
 		}
