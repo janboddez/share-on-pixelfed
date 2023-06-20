@@ -23,8 +23,13 @@ class Image_Handler {
 			->get_options();
 
 		if ( ! empty( $options['use_first_image'] ) ) {
-			// Using first image rather than post thumbnail.
-			$thumb_id = static::find_first_image( $post->ID );
+			// Always parse post content for images and alt text.
+			$referenced_images = static::get_referenced_images( $post );
+
+			foreach ( $referenced_images as $id => $alt ) {
+				$thumb_id = $id;
+				break; // Return only the first ID.
+			}
 		} elseif ( has_post_thumbnail( $post->ID ) ) {
 			// Get post thumbnail (i.e., Featured Image).
 			$thumb_id = get_post_thumbnail_id( $post->ID );
@@ -35,12 +40,13 @@ class Image_Handler {
 			return array( 0, '' );
 		}
 
-		// Always parse post content for images and alt text.
-		/** @todo: Do this _sooner_ and use its result for detecting the 1st image. */
-		$referenced_images = static::get_referenced_images( $post );
+		// Fetch referenced images, but only if we haven't already done so.
+		$referenced_images = isset( $referenced_images )
+			? $referenced_images
+			: static::get_referenced_images( $post );
 
 		// Convert the single image ID into something of the format `array( $id, 'Alt text.' )`.
-		return static::add_alt_text( $thumb_id, $referenced_images );
+		return static::add_alt_text( $thumb_id, $referenced_images ); // Can be made simpler, but ... next time.
 	}
 
 	/**
@@ -54,10 +60,6 @@ class Image_Handler {
 	 * @return string|null      Unique media ID, or nothing on failure.
 	 */
 	public static function upload_thumbnail( $thumb_id, $alt = '', $post_id = 0 ) {
-		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
-			->get_options_handler()
-			->get_options();
-
 		$file_path = '';
 
 		// Grab the "large" image.
@@ -104,6 +106,10 @@ class Image_Handler {
 		$body .= 'Content-Type: ' . mime_content_type( $file_path ) . $eol . $eol;
 		$body .= file_get_contents( $file_path ) . $eol; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 		$body .= '--' . $boundary . '--';
+
+		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
+			->get_options_handler()
+			->get_options();
 
 		$response = wp_remote_post(
 			esc_url_raw( $options['pixelfed_host'] . '/api/v1/media' ),
