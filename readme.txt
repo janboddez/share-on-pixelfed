@@ -1,7 +1,7 @@
 === Share on Pixelfed ===
 Contributors: janboddez
 Tags: pixelfed, share, publicize, crosspost, fediverse
-Tested up to: 6.1
+Tested up to: 6.2
 Stable tag: 0.8.0
 License: GNU General Public License v3.0
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
