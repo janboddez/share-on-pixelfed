@@ -25,6 +25,9 @@ After activation, head over to *Settings > Share on Pixelfed* to authorize WordP
 More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
 
 == Changelog ==
+= 0.9.0 =
+Deprecate `share_on_pixelfed_image_path` filter in favor of `share_on_pixelfed_media`.
+
 = 0.8.0 =
 Improved alt handling.
 

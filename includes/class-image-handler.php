@@ -22,6 +22,8 @@ class Image_Handler {
 			->get_options_handler()
 			->get_options();
 
+		$thumb_id = 0;
+
 		if ( ! empty( $options['use_first_image'] ) ) {
 			// Always parse post content for images and alt text.
 			$referenced_images = static::get_referenced_images( $post );
@@ -35,6 +37,9 @@ class Image_Handler {
 			// Get post thumbnail (i.e., Featured Image).
 			$thumb_id = get_post_thumbnail_id( $post->ID );
 		}
+
+		// We expect a single image ID here, not an array.
+		$thumb_id = apply_filters( 'share_on_pixelfed_media', $thumb_id, $post );
 
 		if ( empty( $thumb_id ) ) {
 			// Nothing to do.
@@ -83,7 +88,12 @@ class Image_Handler {
 		}
 
 		$file_path = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
-		$file_path = apply_filters( 'share_on_pixelfed_image_path', $file_path, $post_id ); // We should deprecate this.
+		$file_path = apply_filters_deprecated(
+			'share_on_pixelfed_image_path',
+			array( $file_path, $post_id ),
+			'0.9.0',
+			'share_on_pixelfed_media'
+		);
 
 		if ( ! is_file( $file_path ) ) {
 			// File doesn't seem to exist.
