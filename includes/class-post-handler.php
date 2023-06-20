@@ -586,10 +586,10 @@ class Post_Handler {
 	 * @return string       (Possibly shortened) excerpt.
 	 */
 	protected function get_excerpt( $post_id ) {
-		$excerpt = get_the_excerpt( $post_id );
-		$excerpt = mb_substr( $excerpt, 0, 125 );
+		$orig    = get_the_excerpt( $post_id );
+		$excerpt = mb_substr( $orig, 0, 125 );
 
-		if ( ! ctype_punct( mb_substr( $excerpt, -1 ) ) ) {
+		if ( $excerpt !== $orig && ! ctype_punct( mb_substr( $excerpt, -1 ) ) ) {
 			$excerpt .= '…';
 		}
 
