@@ -13,8 +13,6 @@ namespace Share_On_Pixelfed;
 class Micropub_Compat {
 	/**
 	 * Enables Micropub syndication.
-	 *
-	 * @since 0.8.0
 	 */
 	public static function register() {
 		// Micropub syndication.
@@ -27,8 +25,6 @@ class Micropub_Compat {
 	 *
 	 * @param  array $syndicate_to Syndication targets.
 	 * @return array               Modified syndication targets.
-	 *
-	 * @since 0.8.0
 	 */
 	public static function syndicate_to( $syndicate_to ) {
 		$plugin  = Share_On_Pixelfed::get_instance();

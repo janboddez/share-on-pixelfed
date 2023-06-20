@@ -33,6 +33,8 @@ class Options_Handler {
 		'share_always'           => false,
 		'micropub_compat'        => false,
 		'syn_links_compat'       => false,
+		'custom_status_field'    => false,
+		'status_template'        => '%title% %permalink%',
 	);
 
 	/**
@@ -109,93 +111,91 @@ class Options_Handler {
 		register_setting(
 			'share-on-pixelfed-settings-group',
 			'share_on_pixelfed_settings',
-			array( 'sanitize_callback' => array( $this, "sanitize_{$active_tab}_settings" ) )
+			array( 'sanitize_callback' => array( $this, 'sanitize_settings' ) )
 		);
 	}
 
 	/**
-	 * Handles submitted "setup" options.
-	 *
-	 * @since 0.7.0
+	 * Handles submitted options.
 	 *
 	 * @param  array $settings Settings as submitted through WP Admin.
 	 * @return array           Options to be stored.
 	 */
-	public function sanitize_setup_settings( $settings ) {
-		$this->options['post_types'] = array();
+	public function sanitize_settings( $settings ) {
+		$active_tab = $this->get_active_tab();
 
-		if ( isset( $settings['post_types'] ) && is_array( $settings['post_types'] ) ) {
-			// Post types considered valid.
-			$supported_post_types = (array) apply_filters( 'share_on_pixelfed_post_types', get_post_types( array( 'public' => true ) ) );
-			$supported_post_types = array_diff( $supported_post_types, self::DEFAULT_POST_TYPES );
+		switch ( $active_tab ) {
+			case 'setup':
+				$this->options['post_types'] = array();
 
-			foreach ( $settings['post_types'] as $post_type ) {
-				if ( in_array( $post_type, $supported_post_types, true ) ) {
-					// Valid post type. Add to array.
-					$this->options['post_types'][] = $post_type;
+				if ( isset( $settings['post_types'] ) && is_array( $settings['post_types'] ) ) {
+					// Post types considered valid.
+					$supported_post_types = (array) apply_filters( 'share_on_pixelfed_post_types', get_post_types( array( 'public' => true ) ) );
+					$supported_post_types = array_diff( $supported_post_types, self::DEFAULT_POST_TYPES );
+
+					foreach ( $settings['post_types'] as $post_type ) {
+						if ( in_array( $post_type, $supported_post_types, true ) ) {
+							// Valid post type. Add to array.
+							$this->options['post_types'][] = $post_type;
+						}
+					}
 				}
-			}
-		}
 
-		if ( isset( $settings['pixelfed_host'] ) ) {
-			// Clean up and sanitize the user-submitted URL.
-			$pixelfed_host = $this->clean_url( $settings['pixelfed_host'] );
+				if ( isset( $settings['pixelfed_host'] ) ) {
+					// Clean up and sanitize the user-submitted URL.
+					$pixelfed_host = $this->clean_url( $settings['pixelfed_host'] );
 
-			if ( '' === $pixelfed_host ) {
-				// Removing the instance URL. Might be done to temporarily
-				// disable crossposting. Let's not "revoke access" just yet.
-				$this->options['pixelfed_host'] = '';
-			} elseif ( wp_http_validate_url( $pixelfed_host ) ) {
-				if ( $pixelfed_host !== $this->options['pixelfed_host'] ) {
-					// Updated URL. Forget access token.
-					$this->options['pixelfed_access_token']  = '';
-					$this->options['pixelfed_refresh_token'] = '';
-					$this->options['pixelfed_token_expiry']  = 0;
+					if ( '' === $pixelfed_host ) {
+						// Removing the instance URL. Might be done to temporarily
+						// disable crossposting. Let's not "revoke access" just yet.
+						$this->options['pixelfed_host'] = '';
+					} elseif ( wp_http_validate_url( $pixelfed_host ) ) {
+						if ( $pixelfed_host !== $this->options['pixelfed_host'] ) {
+							// Updated URL. Forget access token.
+							$this->options['pixelfed_access_token']  = '';
+							$this->options['pixelfed_refresh_token'] = '';
+							$this->options['pixelfed_token_expiry']  = 0;
 
-					// Then, save the new URL.
-					$this->options['pixelfed_host'] = esc_url_raw( $pixelfed_host );
+							// Then, save the new URL.
+							$this->options['pixelfed_host'] = esc_url_raw( $pixelfed_host );
 
-					// Forget client ID and secret. A new client ID and
-					// secret will be requested next time the page loads.
-					$this->options['pixelfed_client_id']     = '';
-					$this->options['pixelfed_client_secret'] = '';
+							// Forget client ID and secret. A new client ID and
+							// secret will be requested next time the page loads.
+							$this->options['pixelfed_client_id']     = '';
+							$this->options['pixelfed_client_secret'] = '';
+						}
+					} else {
+						// Invalid URL. Display error message.
+						add_settings_error(
+							'share-on-pixelfed-pixelfed-host',
+							'invalid-url',
+							esc_html__( 'Please provide a valid URL.', 'share-on-pixelfed' )
+						);
+					}
 				}
-			} else {
-				// Invalid URL. Display error message.
-				add_settings_error(
-					'share-on-pixelfed-pixelfed-host',
-					'invalid-url',
-					esc_html__( 'Please provide a valid URL.', 'share-on-pixelfed' )
+
+				// Updated settings.
+				return $this->options;
+
+			case 'advanced':
+				$options = array(
+					'use_first_image'     => isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ? true : false,
+					'optin'               => isset( $settings['optin'] ) ? true : false,
+					'share_always'        => isset( $settings['share_always'] ) ? true : false,
+					'delay_sharing'       => isset( $settings['delay_sharing'] ) && ctype_digit( $settings['delay_sharing'] )
+						? (int) $settings['delay_sharing']
+						: 0,
+					'custom_status_field' => isset( $settings['custom_status_field'] ) ? true : false,
+					'status_template'     => isset( $settings['status_template'] ) && is_string( $settings['status_template'] )
+						? preg_replace( '~\R~u', "\r\n", sanitize_textarea_field( $settings['status_template'] ) )
+						: '',
+					'micropub_compat'     => isset( $settings['micropub_compat'] ) ? true : false,
+					'syn_links_compat'    => isset( $settings['syn_links_compat'] ) ? true : false,
 				);
-			}
+
+				// Updated settings.
+				return array_merge( $this->options, $options );
 		}
-
-		// Updated settings.
-		return $this->options;
-	}
-
-	/**
-	 * Handles submitted "advanced" options.
-	 *
-	 * @since 0.7.0
-	 *
-	 * @param  array $settings Settings as submitted through WP Admin.
-	 * @return array           Options to be stored.
-	 */
-	public function sanitize_advanced_settings( $settings ) {
-		$options = array(
-			'use_first_image'  => isset( $settings['use_first_image'] ) && '1' === $settings['use_first_image'] ? true : false,
-			'optin'            => isset( $settings['optin'] ) ? true : false,
-			'share_always'     => isset( $settings['share_always'] ) ? true : false,
-			'delay_sharing'    => isset( $settings['delay_sharing'] ) && ctype_digit( $settings['delay_sharing'] )
-				? (int) $settings['delay_sharing']
-				: 0,
-			'micropub_compat'  => isset( $settings['micropub_compat'] ) ? true : false,
-			'syn_links_compat' => isset( $settings['syn_links_compat'] ) ? true : false,
-		);
-
-		// Updated settings.
-		return array_merge( $this->options, $options );
 	}
 
 	/**
@@ -388,6 +388,18 @@ class Options_Handler {
 							<td><label><input type="checkbox" name="share_on_pixelfed_settings[share_always]" value="1" <?php checked( ! empty( $this->options['share_always'] ) ); ?> /> <?php esc_html_e( 'Always syndicate to Pixelfed', 'share-on-pixelfed' ); ?></label>
 							<?php /* translators: %s: link to the `share_on_pixelfed_enabled` documentation */ ?>
 							<p class="description"><?php printf( esc_html__( ' &ldquo;Force&rdquo; syndication, like when posting from a mobile app. For more fine-grained control, have a look at the %s filter hook.', 'share-on-pixelfed' ), '<a target="_blank" href="https://jan.boddez.net/wordpress/share-on-pixelfed#share_on_pixelfed_enabled"><code>share_on_pixelfed_enabled</code></a>' ); ?></p></td>
+						</tr>
+						<tr valign="top">
+							<th scope="row"><label for="share_on_pixelfed_status_template"><?php esc_html_e( 'Status Template', 'share-on-pixelfed' ); ?></label></th>
+							<td><textarea name="share_on_pixelfed_settings[status_template]" id="share_on_pixelfed_status_template" rows="5" style="min-width: 33%;"><?php echo ! empty( $this->options['status_template'] ) ? esc_html( $this->options['status_template'] ) : ''; ?></textarea>
+							<?php /* translators: %s: supported template tags */ ?>
+							<p class="description"><?php printf( __( '(Experimental) Customize the default status template. Supported &ldquo;template tags&rdquo;: %s.', 'share-on-pixelfed' ), '<code>%title%</code>, <code>%excerpt%</code>, <code>%tags%</code>, <code>%permalink%</code>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p></td>
+						</tr>
+						<tr valign="top">
+							<th scope="row"><?php esc_html_e( 'Customize Status', 'share-on-pixelfed' ); ?></th>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[custom_status_field]" value="1" <?php checked( ! empty( $this->options['custom_status_field'] ) ); ?> /> <?php esc_html_e( 'Allow customizing Pixelfed statuses', 'share-on-pixelfed' ); ?></label>
+								<?php /* translators: %s: link to the `share_on_pixelfed_status` documentation */ ?>
+							<p class="description"><?php printf( __( '(Experimental) Add a custom &ldquo;Message&rdquo; field to Share on Pixelfed&rsquo;s &ldquo;meta box.&rdquo; (For more fine-grained control, please have a look at the %s filter instead.)', 'share-on-pixelfed' ), '<a href="https://jan.boddez.net/wordpress/share-on-pixelfed#share_on_pixelfed_status" target="_blank" rel="noopener noreferrer"><code>share_on_pixelfed_status</code></a>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p></td>
 						</tr>
 
 						<?php if ( class_exists( 'Micropub_Endpoint' ) ) : ?>

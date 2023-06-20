@@ -113,6 +113,23 @@ class Post_Handler {
 			<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
 		</label>
 		<?php
+		if ( apply_filters( 'share_on_pixelfed_custom_status_field', ! empty( $this->options['custom_status_field'] ) ) ) :
+			// Custom message saved earlier, if any.
+			$custom_status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
+
+			if ( '' === $custom_status && ! empty( $this->options['status_template'] ) ) {
+				// Default to the template as set on the options page.
+				$custom_status = $this->options['status_template'];
+			}
+			?>
+			<div style="margin-top: 1em;">
+				<label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label>
+				<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"><?php echo esc_html( trim( $custom_status ) ); ?></textarea>
+				<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
+			</div>
+			<?php
+		endif;
+
 		$url = get_post_meta( $post->ID, '_share_on_pixelfed_url', true );
 
 		if ( '' !== $url && wp_http_validate_url( $url ) ) :
@@ -138,16 +155,6 @@ class Post_Handler {
 				<?php
 			endif;
 		endif;
-
-		if ( apply_filters( 'share_on_pixelfed_custom_status_field', false ) ) :
-			?>
-			<div style="margin-top: 0.75em;"><details>
-				<summary><label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label></summary>
-				<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"><?php echo esc_html( get_post_meta( $post->ID, '_share_on_pixelfed_status', true ) ); ?></textarea>
-				<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
-			</details></div>
-			<?php
-		endif;
 	}
 
 	/**
@@ -170,7 +177,9 @@ class Post_Handler {
 		}
 
 		if ( ! isset( $_POST['share_on_pixelfed_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['share_on_pixelfed_nonce'] ), basename( __FILE__ ) ) ) {
-			// Nonce missing or invalid.
+			// Nonce missing or invalid. On sites that use the block editor,
+			// this will also cause the rest of this function to _not_ run the
+			// first time this hook is called.
 			return;
 		}
 
@@ -178,12 +187,23 @@ class Post_Handler {
 			// Unsupported post type.
 			return;
 		}
-
-		if ( post_password_required( $post ) ) {
-			return;
+		if ( isset( $_POST['share_on_pixelfed_status'] ) ) {
+			$status = sanitize_textarea_field( wp_unslash( $_POST['share_on_pixelfed_status'] ) );
+			$status = preg_replace( '~\R~u', "\r\n", $status );
 		}
 
-		if ( isset( $_POST['share_on_pixelfed'] ) ) {
+		if (
+			! empty( $status ) && '' !== preg_replace( '~\s~', '', $status ) &&
+			( empty( $this->options['status_template'] ) || $status !== $this->options['status_template'] )
+		) {
+			// Save only if `$status` is non-empty and, if a template exists, different from said template.
+			update_post_meta( $post->ID, '_share_on_pixelfed_status', $status );
+		} else {
+			// Ignore, or delete a previously stored value.
+			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
+		}
+
+		if ( isset( $_POST['share_on_pixelfed'] ) && ! post_password_required( $post ) ) {
 			// If sharing enabled.
 			update_post_meta( $post->ID, '_share_on_pixelfed', '1' );
 		} else {
@@ -197,6 +217,7 @@ class Post_Handler {
 		if ( ! empty( $status ) ) {
 			update_post_meta( $post->ID, '_share_on_pixelfed_status', $status );
 		} else {
+			delete_post_meta( $post->ID, '_share_on_pixelfed_error' ); // Clear previous errors, if any.
 			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
 		}
 	}
@@ -216,34 +237,30 @@ class Post_Handler {
 			return;
 		}
 
-		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
+		if (
+			defined( 'REST_REQUEST' ) && REST_REQUEST &&
+			empty( $_REQUEST['meta-box-loader'] ) && // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			0 === strpos( wp_get_referer(), admin_url() ) &&
+			! empty( $this->options['custom_status_field'] )
+		) {
+			// Looks like this call to `transition_post_status` was initiated by
+			// the block editor. In that case, this function will be called a
+			// second time after custom meta, including `custom_status_field`,
+			// is processed.
+			// Unless, of course, all meta boxes, including Share on Pixelfed's,
+			// were hidden (e.g., when a site owner relies on the "Share
+			// Always" setting). In that (extremely rare?) case, they _should_
+			// disable the "Custom Status Field" option (which they wouldn't
+			// really be using anyway).
 
-		if ( ! empty( $this->options['share_always'] ) ) {
-			$is_enabled = true;
-		}
-
-		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post ) ) {
-			// Disabled for this post.
+			// This behavior will change once we switch to a Gutenberg sidebar
+			// panel and hide "Share on Pixelfed's" meta box (for the block
+			// editor only, obiously); then, these variables will have been
+			// saved the first time around.
 			return;
 		}
 
-		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
-			// Prevent duplicate statuses.
-			return;
-		}
-
-		if ( 'publish' !== $new_status ) {
-			// Status is something other than `publish`.
-			return;
-		}
-
-		if ( post_password_required( $post ) ) {
-			// Post is password-protected.
-			return;
-		}
-
-		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
-			// Unsupported post type.
+		if ( ! $this->is_valid( $post ) ) {
 			return;
 		}
 
@@ -283,31 +300,8 @@ class Post_Handler {
 	public function post_to_pixelfed( $post_id ) {
 		$post = get_post( $post_id );
 
-		// Let's rerun all of these checks, as something may have changed.
-		$is_enabled = ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ? true : false );
-
-		if ( ! apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post->ID ) ) {
-			// Disabled for this post.
-			return;
-		}
-
-		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
-			// Prevent duplicate toots.
-			return;
-		}
-
-		if ( 'publish' !== $post->post_status ) {
-			// Status is something other than `publish`.
-			return;
-		}
-
-		if ( post_password_required( $post ) ) {
-			// Post is password-protected.
-			return;
-		}
-
-		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
-			// Unsupported post type.
+		// Things may have changed ...
+		if ( ! $this->is_valid( $post ) ) {
 			return;
 		}
 
@@ -336,14 +330,39 @@ class Post_Handler {
 			return;
 		}
 
+		// Fetch custom status message, if any.
 		$status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
-		if ( empty( $status ) ) {
+		// Parse template tags, and sanitize.
+		$status = $this->parse_status( $status, $post->ID );
+
+		if ( ( empty( $status ) || '' === preg_replace( '~\s~', '', $status ) ) && ! empty( $this->options['status_template'] ) ) {
+			// Use template stored in settings.
+			$status = $this->parse_status( $this->options['status_template'], $post->ID );
+		}
+
+		if ( empty( $status ) || '' === preg_replace( '~\s~', '', $status ) ) {
+			// Fall back to post title.
 			$status = get_the_title( $post->ID );
 		}
 
-		$status  = wp_strip_all_tags( html_entity_decode( $status, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) ); // Avoid double-encoded HTML entities.
-		$status .= ' ' . esc_url_raw( get_permalink( $post->ID ) );
-		$status  = apply_filters( 'share_on_pixelfed_status', $status, $post );
+		$status = wp_strip_all_tags(
+			html_entity_decode( $status, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) // Avoid double-encoded HTML entities.
+		);
+
+		// Append permalink, but only if it's not already there.
+		$permalink = esc_url_raw( get_permalink( $post->ID ) );
+
+		if ( false === strpos( $status, $permalink ) ) {
+			// Post doesn't mention permalink, yet. Append it.
+			if ( false === strpos( $status, "\n" ) ) {
+				$status .= ' ' . $permalink; // Keep it single-line.
+			} else {
+				$status .= "\r\n\r\n" . $permalink;
+			}
+		}
+
+		// Allow developers to (completely) override `$status`.
+		$status = apply_filters( 'share_on_pixelfed_status', $status, $post );
 
 		// Encode, build query string.
 		$query_string = http_build_query(
@@ -377,11 +396,9 @@ class Post_Handler {
 			return;
 		}
 
-		// Decode JSON, suppressing possible formatting errors.
 		$status = json_decode( $response['body'] );
 
 		if ( ! empty( $status->url ) ) {
-			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
 			delete_post_meta( $post->ID, '_share_on_pixelfed_error' );
 			update_post_meta( $post->ID, '_share_on_pixelfed_url', $status->url );
 		} elseif ( ! empty( $status->error ) ) {
@@ -460,5 +477,150 @@ class Post_Handler {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Determines if a post should, in fact, be shared.
+	 *
+	 * @param  WP_Post $post Post object.
+	 * @return bool          If the post should be shared.
+	 */
+	protected function is_valid( $post ) {
+		if ( 'publish' !== $post->post_status ) {
+			// Status is something other than `publish`.
+			return false;
+		}
+
+		if ( post_password_required( $post ) ) {
+			// Post is password-protected.
+			return false;
+		}
+
+		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
+			// Unsupported post type.
+			return false;
+		}
+
+		if ( '' !== get_post_meta( $post->ID, '_share_on_pixelfed_url', true ) ) {
+			// Was shared before (and not "unlinked").
+			return false;
+		}
+
+		// A post should only be shared when either the "Share on Pixelfed"
+		// checkbox was checked (and its value saved), or when "Share Always" is
+		// active (and the post isn't "too old," to avoid mishaps).
+		$share_always = false;
+		$is_enabled   = false;
+
+		if ( '1' === get_post_meta( $post->ID, '_share_on_pixelfed', true ) ) {
+			// Sharing was "explicitly" enabled for this post.
+			$is_enabled = true;
+		}
+
+		if ( ! empty( $this->options['share_always'] ) ) {
+			$share_always = true;
+		}
+
+		// We have let developers override `$is_enabled` through a callback
+		// function. In practice, this is almost always used to force sharing.
+		if ( apply_filters( 'share_on_pixelfed_enabled', $is_enabled, $post->ID ) ) {
+			$share_always = true;
+		}
+
+		if ( $this->is_older_than( DAY_IN_SECONDS / 2, $post ) ) {
+			// Since v0.13.0, we disallow automatic sharing of "older" posts.
+			// This sort of changes the behavior of the hook above, which would
+			// always come last.
+			$share_always = false;
+		}
+
+		if ( $is_enabled || $share_always ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Determines whether a post is older than a certain number of seconds.
+	 *
+	 * @param  int     $seconds Minimum "age," in secondss.
+	 * @param  WP_Post $post    Post object.
+	 * @return bool             True if the post exists and is older than `$seconds`, false otherwise.
+	 */
+	protected function is_older_than( $seconds, $post ) {
+		$post_time = get_post_time( 'U', true, $post );
+
+		if ( false === $post_time ) {
+			return false;
+		}
+
+		if ( $post_time >= time() - $seconds ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Parses `%title%`, etc. template tags.
+	 *
+	 * @param  string $status  Pixelfed status, or template.
+	 * @param  int    $post_id Post ID.
+	 * @return string          Parsed status.
+	 */
+	protected function parse_status( $status, $post_id ) {
+		$status = str_replace( '%title%', get_the_title( $post_id ), $status );
+		$status = str_replace( '%excerpt%', $this->get_excerpt( $post_id ), $status );
+		$status = str_replace( '%tags%', $this->get_tags( $post_id ), $status );
+		$status = str_replace( '%permalink%', esc_url_raw( get_permalink( $post_id ) ), $status );
+		$status = preg_replace( '~(\r\n){2,}~', "\r\n\r\n", $status ); // We should have normalized line endings by now.
+
+		return sanitize_textarea_field( $status ); // Strips HTML and whatnot.
+	}
+
+	/**
+	 * Returns a post's excerpt, but limited to approx. 125 characters.
+	 *
+	 * @param  int $post_id Post ID.
+	 * @return string       (Possibly shortened) excerpt.
+	 */
+	protected function get_excerpt( $post_id ) {
+		$excerpt = get_the_excerpt( $post_id );
+		$excerpt = mb_substr( $excerpt, 0, 125 );
+
+		if ( ! ctype_punct( mb_substr( $excerpt, -1 ) ) ) {
+			$excerpt .= '…';
+		}
+
+		return trim( $excerpt );
+	}
+
+	/**
+	 * Returns a post's tags as a string of space-separated hashtags.
+	 *
+	 * @param  int $post_id Post ID.
+	 * @return string       Hashtag string.
+	 */
+	protected function get_tags( $post_id ) {
+		$hashtags = '';
+		$tags     = get_the_tags( $post_id );
+
+		if ( $tags && ! is_wp_error( $tags ) ) {
+			foreach ( $tags as $tag ) {
+				$tag_name = $tag->name;
+
+				if ( preg_match( '/\s+/', $tag_name ) ) {
+					// Try to "CamelCase" multi-word tags.
+					$tag_name = preg_replace( '/\s+/', ' ', $tag_name );
+					$tag_name = explode( ' ', $tag_name );
+					$tag_name = implode( '', array_map( 'ucfirst', $tag_name ) );
+				}
+
+				$hashtags .= '#' . $tag_name . ' ';
+			}
+		}
+
+		return trim( $hashtags );
 	}
 }

@@ -2,7 +2,7 @@
 Contributors: janboddez
 Tags: pixelfed, share, publicize, crosspost, fediverse
 Tested up to: 6.2
-Stable tag: 0.8.0
+Stable tag: 0.10.0
 License: GNU General Public License v3.0
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,7 +26,7 @@ More detailed instructions can be found on [this plugin's GitHub page](https://g
 
 == Changelog ==
 = 0.9.0 =
-Deprecate `share_on_pixelfed_image_path` filter in favor of `share_on_pixelfed_media`.
+Add status template, update custom statuses, and improve Gutenberg behavior. Deprecate `share_on_pixelfed_image_path` filter in favor of `share_on_pixelfed_media`.
 
 = 0.8.0 =
 Improved alt handling.

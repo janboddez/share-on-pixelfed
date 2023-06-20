@@ -18,7 +18,7 @@ class Share_On_Pixelfed {
 	 *
 	 * @var string PLUGIN_VERSION Current plugin version.
 	 */
-	const PLUGIN_VERSION = '0.8.0';
+	const PLUGIN_VERSION = '0.9.0';
 
 	/**
 	 * This plugin's single instance.

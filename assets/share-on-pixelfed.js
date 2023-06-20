@@ -14,13 +14,10 @@ jQuery( document ).ready( function ( $ ) {
 		};
 
 		$.post( ajaxurl, data, function( response ) {
-			// On success, remove extra paragraph.
+			// On success, untick the checkbox, and remove the link (and the `button` with it).
+			$( 'input[name="share_on_pixelfed"]' ).prop( 'checked', false );
 			button.closest( '.description' ).remove();
 		} );
-	} );
-
-	$( '#share-on-pixelfed [for="share_on_pixelfed_status"]' ).click( function() {
-		$( '#share-on-pixelfed details' ).attr( 'open', 'open' );
 	} );
 
 	$( '.settings_page_share-on-pixelfed .button-reset-settings' ).click( function( e ) {

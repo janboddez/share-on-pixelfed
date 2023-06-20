@@ -14,10 +14,18 @@ class Syn_Links_Compat {
 	/**
 	 * Register Syndication Links callbacks.
 	 *
-	 * @since 0.11.0
+	 * @since 0.8.0
 	 */
 	public static function register() {
-		add_filter( 'syn_add_links', array( __CLASS__, 'syndication_links' ), 10, 2 );
+		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
+			->get_options_handler()
+			->get_options();
+
+		$post_types = (array) $options['post_types']; // Should make this more robust.
+
+		foreach ( $post_types as $post_type ) {
+			add_filter( "get_{$post_type}_syndication_links", array( __CLASS__, 'syndication_links' ), 10, 2 );
+		}
 	}
 
 	/**
@@ -27,7 +35,7 @@ class Syn_Links_Compat {
 	 * @param  array $object_id The post we're gathering these links for.
 	 * @return array            Modified syndication links.
 	 *
-	 * @since 0.11.0
+	 * @since 0.8.0
 	 */
 	public static function syndication_links( $urls, $object_id ) {
 		$pixelfed_url = get_post_meta( $object_id, '_share_on_pixelfed_url', true );

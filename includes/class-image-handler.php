@@ -72,10 +72,11 @@ class Image_Handler {
 	 * @return string|null      Unique media ID, or nothing on failure.
 	 */
 	public static function upload_thumbnail( $thumb_id, $alt = '', $post_id = 0 ) {
-		$file_path = '';
+		if ( wp_attachment_is_image( $thumb_id ) ) {
+			// Grab the "large" image.
+			$image = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
+		}
 
-		// Grab the "large" image.
-		$image   = wp_get_attachment_image_src( $thumb_id, apply_filters( 'share_on_pixelfed_image_size', 'large', $thumb_id ) );
 		$uploads = wp_upload_dir();
 
 		if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
