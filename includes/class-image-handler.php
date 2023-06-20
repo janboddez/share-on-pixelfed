@@ -15,7 +15,7 @@ class Image_Handler {
 	 * Returns a post's first or featured image, with alt text (if any).
 	 *
 	 * @param  WP_Post $post Post object.
-	 * @return array         Attachment array.
+	 * @return array         Array with the image ID as its first element and the image's alt text as its second element.
 	 */
 	public static function get_image( $post ) {
 		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
@@ -26,8 +26,9 @@ class Image_Handler {
 			// Always parse post content for images and alt text.
 			$referenced_images = static::get_referenced_images( $post );
 
-			foreach ( $referenced_images as $id => $alt ) {
+			foreach ( $referenced_images as $id => $temp_alt ) {
 				$thumb_id = $id;
+				$alt      = $temp_alt;
 				break; // Return only the first ID.
 			}
 		} elseif ( has_post_thumbnail( $post->ID ) ) {
@@ -40,13 +41,19 @@ class Image_Handler {
 			return array( 0, '' );
 		}
 
-		// Fetch referenced images, but only if we haven't already done so.
-		$referenced_images = isset( $referenced_images )
-			? $referenced_images
-			: static::get_referenced_images( $post );
+		if ( empty( $alt ) ) {
+			// Fetch referenced images, but only if we haven't already done so.
+			$referenced_images = isset( $referenced_images )
+				? $referenced_images
+				: static::get_referenced_images( $post );
 
-		// Convert the single image ID into something of the format `array( $id, 'Alt text.' )`.
-		return static::add_alt_text( $thumb_id, $referenced_images ); // Can be made simpler, but ... next time.
+			// Look up alt text in either `$referenced_images` or the database.
+			$alt = static::get_alt_text( $thumb_id, $referenced_images );
+		}
+
+		$alt = html_entity_decode( $alt, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) );
+
+		return array( $thumb_id, $alt );
 	}
 
 	/**
@@ -230,14 +237,14 @@ class Image_Handler {
 	/**
 	 * Returns alt text for a certain image.
 	 *
-	 * Looks through `$images` first, and falls back on what's stored in the
-	 * `wp_postmeta` table.
+	 * Looks through `$referenced_images` first, and falls back on what's stored
+	 * in the `wp_postmeta` table.
 	 *
 	 * @param  int   $image_id          ID of the image we want to upload.
-	 * @param  array $referenced_images In-post images and their alt attributes, to look through first.
-	 * @return array                    An array with the image ID as its key and this image's alt attributes as its value.
+	 * @param  array $referenced_images In-post images and their alt attributes, to consider first.
+	 * @return string                   The image's alt attribute.
 	 */
-	protected static function add_alt_text( $image_id, $referenced_images ) {
+	protected static function get_alt_text( $image_id, $referenced_images ) {
 		if ( isset( $referenced_images[ $image_id ] ) && '' !== $referenced_images[ $image_id ] ) {
 			// This image was found inside the post, with alt text.
 			$alt = $referenced_images[ $image_id ];
@@ -250,10 +257,6 @@ class Image_Handler {
 			}
 		}
 
-		// Avoid double-encoded entities.
-		return array(
-			$image_id,
-			is_string( $alt ) ? html_entity_decode( $alt, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ) : '',
-		);
+		return is_string( $alt ) ? $alt : ''; // Always return a string.
 	}
 }
