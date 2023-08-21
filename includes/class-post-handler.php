@@ -51,24 +51,54 @@ class Post_Handler {
 
 	/**
 	 * Register `_share_on_pixelfed_url` meta for use with the REST API.
-	 *
-	 * @since 0.7.0
 	 */
 	public function register_meta() {
+		if ( empty( $this->options['post_types'] ) ) {
+			return;
+		}
+
 		$post_types = (array) $this->options['post_types'];
 
 		foreach ( $post_types as $post_type ) {
-			register_post_meta(
+			// Expose Share on Mastodon's custom fields to the REST API.
+			register_rest_field(
 				$post_type,
-				'_share_on_pixelfed_url',
+				'share_on_pixelfed',
 				array(
-					'single'        => true,
-					'show_in_rest'  => true,
-					'type'          => 'string',
-					'auth_callback' => '__return_true',
+					'get_callback'    => array( $this, 'get_meta' ),
+					'update_callback' => null,
 				)
 			);
 		}
+	}
+
+	/**
+	 * Exposes Share on Pixelfed's metadata to the REST API.
+	 *
+	 * @param  \WP_REST_Request|array $request API request (parameters).
+	 * @return array|\WP_Error                 Response (or error).
+	 */
+	public function get_meta( $request ) {
+		if ( is_array( $request ) ) {
+			$post_id = $request['id'];
+		} else {
+			$post_id = $request->get_param( 'post_id' );
+		}
+
+		if ( empty( $post_id ) || ! ctype_digit( $post_id ) ) {
+			return new \WP_Error( 'invalid_id', 'Invalid post ID.', array( 'status' => 400 ) );
+		}
+
+		$post_id = (int) $post_id;
+
+		$url = get_post_meta( $post_id, '_share_on_pixelfed_url', true );
+
+		return array(
+			'url'   => get_post_meta( $post_id, '_share_on_pixelfed_url', true ),
+			'error' => empty( $url ) // Don't bother if we've got a URL.
+				? get_post_meta( $post_id, '_share_on_pixelfed_error', true )
+				: '',
+		);
 	}
 
 	/**
