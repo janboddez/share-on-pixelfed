@@ -158,43 +158,6 @@ class Image_Handler {
 	}
 
 	/**
-	 * Returns the file path of the first image inside a post's content.
-	 *
-	 * @since 0.7.0
-	 *
-	 * @param  int $post_id Post ID.
-	 * @return int|null     Image ID, or nothing on failure.
-	 */
-	public static function find_first_image( $post_id ) {
-		$post = get_post( $post_id );
-
-		// Assumes `src` value is wrapped in quotes. This will almost always be
-		// the case.
-		preg_match_all( '~<img(?:.+?)src=[\'"]([^\'"]+)[\'"](?:.*?)>~i', $post->post_content, $matches );
-
-		if ( empty( $matches[1] ) ) {
-			return;
-		}
-
-		foreach ( $matches[1] as $match ) {
-			$filename = pathinfo( $match, PATHINFO_FILENAME );
-			$original = preg_replace( '~-(?:\d+x\d+|scaled|rotated)$~', '', $filename ); // Strip dimensions, etc., off resized images.
-
-			$url = str_replace( $filename, $original, $match );
-
-			// Convert URL back to attachment ID.
-			$thumb_id = attachment_url_to_postid( $url );
-
-			if ( 0 === $thumb_id ) {
-				// Unknown to WordPress.
-				continue;
-			}
-
-			return $thumb_id;
-		}
-	}
-
-	/**
 	 * Attempts to find and return in-post images and their alt text.
 	 *
 	 * @param  WP_Post $post Post object.
