@@ -2,11 +2,32 @@
 	margin: 1em 0 1px;
 }
 
+#share-on-pixelfed .url .ellipsis,
+.share-on-pixelfed-url .ellipsis {
+	word-break: break-word;
+}
+
+.share-on-pixelfed-url,
+.share-on-pixelfed-url:active,
+.share-on-pixelfed-url:hover,
+.share-on-pixelfed-url:focus {
+	margin-inline-end: 0.33em;
+	color: #007cba;
+}
+
 #share-on-pixelfed .url .ellipsis::after,
 .share-on-pixelfed-url .ellipsis::after {
-	content: "…";
+	word-break: break-word;
+	content: "\2026";
 }
 
 #share-on-pixelfed .unlink {
 	color: #a00;
+}
+
+.share-on-pixelfed-unlink,
+.share-on-pixelfed-unlink:active,
+.share-on-pixelfed-unlink:hover,
+.share-on-pixelfed-unlink:focus {
+	color: #cc1818;
 }
