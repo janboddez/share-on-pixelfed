@@ -71,10 +71,22 @@ class Share_On_Pixelfed {
 		$this->options_handler = new Options_Handler();
 		$this->options_handler->register();
 
-		$this->post_handler = new Post_Handler( $this->options_handler );
+		$this->post_handler = new Post_Handler( $this->options_handler->get_options() );
 		$this->post_handler->register();
+	}
 
-		$options = $this->options_handler->get_options();
+	/**
+	 * Interacts with WordPress's Plugin API.
+	 *
+	 * @since 0.5.0
+	 */
+	public function register() {
+		register_deactivation_hook( dirname( __DIR__ ) . '/share-on-pixelfed.php', array( $this, 'deactivate' ) );
+
+		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+		add_action( 'init', array( $this, 'register_cron' ) );
+
+		$options = get_options();
 
 		if ( ! empty( $options['micropub_compat'] ) ) {
 			Micropub_Compat::register();
@@ -83,18 +95,8 @@ class Share_On_Pixelfed {
 		if ( ! empty( $options['syn_links_compat'] ) ) {
 			Syn_Links_Compat::register();
 		}
-	}
 
-	/**
-	 * Registers hook callbacks.
-	 *
-	 * @since 0.4.0
-	 */
-	public function register() {
-		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
-		add_action( 'plugins_loaded', array( $this, 'activate' ) );
-
-		register_deactivation_hook( dirname( dirname( __FILE__ ) ) . '/share-on-pixelfed.php', array( $this, 'deactivate' ) );
+		Block_Editor::register();
 	}
 
 	/**
@@ -103,15 +105,15 @@ class Share_On_Pixelfed {
 	 * @since 0.1.0
 	 */
 	public function load_textdomain() {
-		load_plugin_textdomain( 'share-on-pixelfed', false, basename( dirname( dirname( __FILE__ ) ) ) . '/languages' );
+		load_plugin_textdomain( 'share-on-pixelfed', false, basename( dirname( __DIR__ ) ) . '/languages' );
 	}
 
 	/**
 	 * Registers WP-Cron hook.
 	 *
-	 * @since 0.3.0
+	 * @since 0.9.0
 	 */
-	public function activate() {
+	public function register_cron() {
 		// Schedule a daily cron job, starting 15 minutes after this plugin's
 		// first activated.
 		if ( false === wp_next_scheduled( 'share_on_pixelfed_refresh_token' ) ) {

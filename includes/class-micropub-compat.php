@@ -27,8 +27,7 @@ class Micropub_Compat {
 	 * @return array               Modified syndication targets.
 	 */
 	public static function syndicate_to( $syndicate_to ) {
-		$plugin  = Share_On_Pixelfed::get_instance();
-		$options = $plugin->get_options_handler()->get_options();
+		$options = get_options();
 
 		if ( empty( $options['pixelfed_host'] ) ) {
 			return $syndicate_to;
@@ -55,8 +54,7 @@ class Micropub_Compat {
 	 * @since 0.8.0
 	 */
 	public static function syndication( $post_id, $synd_requested ) {
-		$plugin  = Share_On_Pixelfed::get_instance();
-		$options = $plugin->get_options_handler()->get_options();
+		$options = get_options();
 
 		if ( empty( $options['pixelfed_host'] ) ) {
 			return;

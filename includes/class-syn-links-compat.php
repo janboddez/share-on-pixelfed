@@ -17,9 +17,7 @@ class Syn_Links_Compat {
 	 * @since 0.8.0
 	 */
 	public static function register() {
-		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
-			->get_options_handler()
-			->get_options();
+		$options = get_options();
 
 		$post_types = (array) $options['post_types']; // Should make this more robust.
 

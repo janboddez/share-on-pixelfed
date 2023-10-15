@@ -25,12 +25,10 @@ class Post_Handler {
 	 *
 	 * @since 0.1.0
 	 *
-	 * @param Options_Handler $options_handler `Options_Handler` instance.
+	 * @param array $options Plugin options.
 	 */
-	public function __construct( Options_Handler $options_handler = null ) {
-		if ( null !== $options_handler ) {
-			$this->options = $options_handler->get_options();
-		}
+	public function __construct( $options = array() ) {
+		$this->options = $options;
 	}
 
 	/**
@@ -39,14 +37,19 @@ class Post_Handler {
 	 * @since 0.4.0
 	 */
 	public function register() {
-		add_action( 'transition_post_status', array( $this, 'update_meta' ), 11, 3 );
-		add_action( 'transition_post_status', array( $this, 'toot' ), 999, 3 );
-		add_action( 'share_on_pixelfed_post', array( $this, 'post_to_pixelfed' ) );
-
-		add_action( 'rest_api_init', array( $this, 'register_meta' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 		add_action( 'wp_ajax_share_on_pixelfed_unlink_url', array( $this, 'unlink_url' ) );
+
+		if ( ! empty( $this->options['post_types'] ) ) {
+			foreach ( (array) $this->options['post_types'] as $post_type ) {
+				add_action( "save_post_{$post_type}", array( $this, 'update_meta' ), 11 );
+				add_action( "save_post_{$post_type}", array( $this, 'toot' ), 20 );
+			}
+		}
+
+		// "Delayed" sharing.
+		add_action( 'share_on_pixelfed_post', array( $this, 'post_to_pixelfed' ) );
 	}
 
 	/**
@@ -102,101 +105,15 @@ class Post_Handler {
 	}
 
 	/**
-	 * Registers a new meta box.
-	 *
-	 * @since 0.1.0
-	 */
-	public function add_meta_box() {
-		if ( empty( $this->options['post_types'] ) ) {
-			// Sharing disabled for all post types.
-			return;
-		}
-
-		add_meta_box(
-			'share-on-pixelfed',
-			__( 'Share on Pixelfed', 'share-on-pixelfed' ),
-			array( $this, 'render_meta_box' ),
-			(array) $this->options['post_types'],
-			'side',
-			'default'
-		);
-	}
-
-	/**
-	 * Renders custom fields meta boxes on the custom post type edit page.
-	 *
-	 * @since 0.1.0
-	 * @param WP_Post $post Post being edited.
-	 */
-	public function render_meta_box( $post ) {
-		wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' );
-
-		$enabled = ! empty( $this->options['optin'] );
-		$check   = array( '', '1' );
-
-		if ( apply_filters( 'share_on_pixelfed_optin', $enabled ) ) {
-			$check = array( '1' ); // Make sharing opt-in.
-		}
-		?>
-		<label>
-			<input type="checkbox" name="share_on_pixelfed" value="1" <?php checked( in_array( get_post_meta( $post->ID, '_share_on_pixelfed', true ), $check, true ) ); ?>>
-			<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
-		</label>
-		<?php
-		if ( apply_filters( 'share_on_pixelfed_custom_status_field', ! empty( $this->options['custom_status_field'] ) ) ) :
-			// Custom message saved earlier, if any.
-			$custom_status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
-
-			if ( '' === $custom_status && ! empty( $this->options['status_template'] ) ) {
-				// Default to the template as set on the options page.
-				$custom_status = $this->options['status_template'];
-			}
-			?>
-			<div style="margin-top: 1em;">
-				<label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label>
-				<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"><?php echo esc_html( trim( $custom_status ) ); ?></textarea>
-				<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
-			</div>
-			<?php
-		endif;
-
-		$url = get_post_meta( $post->ID, '_share_on_pixelfed_url', true );
-
-		if ( '' !== $url && wp_http_validate_url( $url ) ) :
-			$url_parts = wp_parse_url( $url );
-
-			$display_url  = '<span class="screen-reader-text">' . $url_parts['scheme'] . '://';
-			$display_url .= ( ! empty( $url_parts['user'] ) ? $url_parts['user'] . ( ! empty( $url_parts['pass'] ) ? ':' . $url_parts['pass'] : '' ) . '@' : '' ) . '</span>';
-			$display_url .= '<span class="ellipsis">' . substr( $url_parts['host'] . $url_parts['path'], 0, 20 ) . '</span><span class="screen-reader-text">' . substr( $url_parts['host'] . $url_parts['path'], 20 ) . '</span>';
-			?>
-			<p class="description">
-				<?php /* translators: toot URL */ ?>
-				<?php printf( esc_html__( 'Shared at %s', 'share-on-pixelfed' ), '<a class="url" href="' . esc_url( $url ) . '">' . $display_url . '</a>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-				<?php /* translators: "unlink" link text */ ?>
-				<a href="#" class="unlink"><?php esc_html_e( 'Unlink', 'share-on-pixelfed' ); ?></a>
-			</p>
-			<?php
-		else :
-			$error_message = get_post_meta( $post->ID, '_share_on_pixelfed_error', true );
-
-			if ( '' !== $error_message ) :
-				?>
-				<p class="description"><i><?php echo esc_html( $error_message ); ?></i></p>
-				<?php
-			endif;
-		endif;
-	}
-
-	/**
 	 * Handles metadata.
 	 *
 	 * @since 0.1.0
 	 *
-	 * @param string  $new_status Old post status.
-	 * @param string  $old_status New post status.
-	 * @param WP_Post $post       Post object.
+	 * @param int|\WP_Post $post Post ID or object.
 	 */
-	public function update_meta( $new_status, $old_status, $post ) {
+	public function update_meta( $post ) {
+		$post = get_post( $post );
+
 		if ( wp_is_post_revision( $post->ID ) || wp_is_post_autosave( $post->ID ) ) {
 			// Prevent double posting.
 			return;
@@ -207,16 +124,10 @@ class Post_Handler {
 		}
 
 		if ( ! isset( $_POST['share_on_pixelfed_nonce'] ) || ! wp_verify_nonce( sanitize_key( $_POST['share_on_pixelfed_nonce'] ), basename( __FILE__ ) ) ) {
-			// Nonce missing or invalid. On sites that use the block editor,
-			// this will also cause the rest of this function to _not_ run the
-			// first time this hook is called.
+			// Nonce missing or invalid.
 			return;
 		}
 
-		if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
-			// Unsupported post type.
-			return;
-		}
 		if ( isset( $_POST['share_on_pixelfed_status'] ) ) {
 			$status = sanitize_textarea_field( wp_unslash( $_POST['share_on_pixelfed_status'] ) );
 			$status = preg_replace( '~\R~u', "\r\n", $status );
@@ -237,56 +148,45 @@ class Post_Handler {
 			// If sharing enabled.
 			update_post_meta( $post->ID, '_share_on_pixelfed', '1' );
 		} else {
-			update_post_meta( $post->ID, '_share_on_pixelfed', '0' );
-		}
-
-		if ( apply_filters( 'share_on_pixelfed_custom_status_field', false ) && isset( $_POST['share_on_pixelfed_status'] ) ) {
-			$status = sanitize_textarea_field( wp_unslash( $_POST['share_on_pixelfed_status'] ) );
-		}
-
-		if ( ! empty( $status ) ) {
-			update_post_meta( $post->ID, '_share_on_pixelfed_status', $status );
-		} else {
 			delete_post_meta( $post->ID, '_share_on_pixelfed_error' ); // Clear previous errors, if any.
-			delete_post_meta( $post->ID, '_share_on_pixelfed_status' );
+			update_post_meta( $post->ID, '_share_on_pixelfed', '0' );
 		}
 	}
 
 	/**
-	 * Shares a post on Pixelfed.
+	 * Schedules sharing to Pixelfed.
 	 *
 	 * @since 0.1.0
 	 *
-	 * @param string  $new_status New post status.
-	 * @param string  $old_status Old post status.
-	 * @param WP_Post $post       Post object.
+	 * @param int|\WP_Post $post Post ID or object.
 	 */
-	public function toot( $new_status, $old_status, $post ) {
-		if ( wp_is_post_revision( $post->ID ) || wp_is_post_autosave( $post->ID ) ) {
-			// Prevent accidental double posting.
+	public function toot( $post ) {
+		$post = get_post( $post );
+
+		if ( 0 === strpos( current_action(), 'save_' ) && defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+			// For REST requests, we use a *later* hook, which runs *after*
+			// metadata, if any, has been saved.
+			add_action( "rest_after_insert_{$post->post_type}", array( $this, 'toot' ), 20 );
+
+			// Don't do anything just yet.
 			return;
 		}
 
-		if (
-			defined( 'REST_REQUEST' ) && REST_REQUEST &&
-			empty( $_REQUEST['meta-box-loader'] ) && // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			0 === strpos( wp_get_referer(), admin_url() ) &&
-			! empty( $this->options['custom_status_field'] )
-		) {
-			// Looks like this call to `transition_post_status` was initiated by
-			// the block editor. In that case, this function will be called a
-			// second time after custom meta, including `custom_status_field`,
-			// is processed.
-			// Unless, of course, all meta boxes, including Share on Pixelfed's,
-			// were hidden (e.g., when a site owner relies on the "Share
-			// Always" setting). In that (extremely rare?) case, they _should_
-			// disable the "Custom Status Field" option (which they wouldn't
-			// really be using anyway).
+		if ( $this->is_gutenberg() && empty( $_REQUEST['meta-box-loader'] ) && ! empty( $this->options['meta_box'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			// This is the first of *two* "Gutenberg requests," and we should
+			// ignore it. Now, it could be that `$this->is_gutenberg()` always
+			// returns `false` whenever `$_REQUEST['meta-box-loader']` is
+			// present. Still, doesn't hurt to check.
+			return;
+		}
 
-			// This behavior will change once we switch to a Gutenberg sidebar
-			// panel and hide "Share on Pixelfed's" meta box (for the block
-			// editor only, obiously); then, these variables will have been
-			// saved the first time around.
+		// In all other cases (non-REST request, non-Gutenberg REST request, or
+		// *second* Gutenberg request), we move on.
+		if ( wp_is_post_revision( $post ) || wp_is_post_autosave( $post ) ) {
+			return;
+		}
+
+		if ( ! $this->setup_completed() ) {
 			return;
 		}
 
@@ -294,23 +194,11 @@ class Post_Handler {
 			return;
 		}
 
-		if ( empty( $this->options['pixelfed_host'] ) ) {
-			return;
-		}
-
-		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
-			return;
-		}
-
-		if ( empty( $this->options['pixelfed_access_token'] ) ) {
-			return;
-		}
-
 		if ( ! empty( $this->options['delay_sharing'] ) ) {
 			// Since version 0.7.0, there's an option to "schedule" sharing
 			// rather than do everything inline.
 			wp_schedule_single_event(
-				time() + $this->options['delay_sharing'],
+				time() + min( $this->options['delay_sharing'], 3600 ), // Limit to one hour.
 				'share_on_pixelfed_post',
 				array( $post->ID )
 			);
@@ -321,29 +209,21 @@ class Post_Handler {
 	}
 
 	/**
-	 * Shares a post on Pixelfed.
+	 * Actually shares a post on Pixelfed.
 	 *
-	 * @since 0.7.0
+	 * Can be called directly or as a (scheduled) `share_on_pixelfed_post`
+	 * callback.
 	 *
-	 * @param int $post_id Post ID.
+	 * @param int|\WP_Post $post Post ID or object.
 	 */
-	public function post_to_pixelfed( $post_id ) {
-		$post = get_post( $post_id );
+	public function post_to_pixelfed( $post ) {
+		if ( ! $this->setup_completed() ) {
+			return;
+		}
 
-		// Things may have changed ...
+		$post = get_post( $post );
+
 		if ( ! $this->is_valid( $post ) ) {
-			return;
-		}
-
-		if ( empty( $this->options['pixelfed_host'] ) ) {
-			return;
-		}
-
-		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
-			return;
-		}
-
-		if ( empty( $this->options['pixelfed_access_token'] ) ) {
 			return;
 		}
 
@@ -393,6 +273,7 @@ class Post_Handler {
 
 		// Allow developers to (completely) override `$status`.
 		$status = apply_filters( 'share_on_pixelfed_status', $status, $post );
+		$args   = apply_filters( 'share_on_pixelfed_toot_args', array( 'status' => $status ), $post );
 
 		// Encode, build query string.
 		$query_string = http_build_query(
@@ -412,8 +293,7 @@ class Post_Handler {
 				'headers'     => array(
 					'Authorization' => 'Bearer ' . $this->options['pixelfed_access_token'],
 				),
-				// Prevent WordPress from applying `http_build_query()`, for the
-				// same reason.
+				// Prevent WordPress from applying `http_build_query()`.
 				'data_format' => 'body',
 				'body'        => $query_string,
 				'timeout'     => 20,
@@ -422,7 +302,7 @@ class Post_Handler {
 
 		if ( is_wp_error( $response ) ) {
 			// An error occurred.
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return;
 		}
 
@@ -430,14 +310,123 @@ class Post_Handler {
 
 		if ( ! empty( $status->url ) ) {
 			delete_post_meta( $post->ID, '_share_on_pixelfed_error' );
-			update_post_meta( $post->ID, '_share_on_pixelfed_url', $status->url );
+			update_post_meta( $post->ID, '_share_on_pixelfed_url', esc_url_raw( $status->url ) );
+			delete_transient( "share_on_pixelfed:{$post->ID}:url" );
+
+			if ( 'share_on_pixelfed_post' !== current_filter() ) {
+				// Show a notice only when this function was called directly.
+				add_filter( 'redirect_post_location', array( Notices::class, 'add_success_query_var' ) );
+			}
 		} elseif ( ! empty( $status->error ) ) {
 			update_post_meta( $post->ID, '_share_on_pixelfed_error', sanitize_text_field( $status->error ) );
 
+			if ( 'share_on_pixelfed_post' !== current_filter() ) {
+				// Show a notice only when this function was called directly.
+				add_filter( 'redirect_post_location', array( Notices::class, 'add_error_query_var' ) );
+			}
+
 			// Provided debugging's enabled, let's store the (somehow faulty)
 			// response.
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
+	}
+
+
+	/**
+	 * Registers a new meta box.
+	 *
+	 * @since 0.1.0
+	 */
+	public function add_meta_box() {
+		if ( empty( $this->options['post_types'] ) ) {
+			// Sharing disabled for all post types.
+			return;
+		}
+
+		// This'll hide the meta box for Gutenberg users, who by default get the
+		// new sidebar panel.
+		$args = array(
+			'__back_compat_meta_box' => true,
+		);
+		if ( ! empty( $this->options['meta_box'] ) ) {
+			// And this will bring it back.
+			$args = null;
+		}
+
+		add_meta_box(
+			'share-on-pixelfed',
+			__( 'Share on Pixelfed', 'share-on-pixelfed' ),
+			array( $this, 'render_meta_box' ),
+			(array) $this->options['post_types'],
+			'side',
+			'default',
+			$args
+		);
+	}
+
+	/**
+	 * Renders custom fields meta boxes on the custom post type edit page.
+	 *
+	 * @since 0.1.0
+	 * @param WP_Post $post Post being edited.
+	 */
+	public function render_meta_box( $post ) {
+		wp_nonce_field( basename( __FILE__ ), 'share_on_pixelfed_nonce' );
+		$checked = get_post_meta( $post->ID, '_share_on_pixelfed', true );
+
+		if ( '' === $checked ) {
+			// If sharing is "opt-in" or the post in question is older than 15
+			// minutes, do _not_ check the checkbox by default.
+			$checked = apply_filters( 'share_on_pixelfed_optin', ! empty( $this->options['optin'] ) ) || $this->is_older_than( 900, $post ) ? '0' : '1';
+		}
+		?>
+		<label>
+			<input type="checkbox" name="share_on_pixelfed" value="1" <?php checked( '1' === $checked ); ?>>
+			<?php esc_html_e( 'Share on Pixelfed', 'share-on-pixelfed' ); ?>
+		</label>
+		<?php
+		if ( ! empty( $this->options['custom_status_field'] ) ) :
+			// Custom message saved earlier, if any.
+			$custom_status = get_post_meta( $post->ID, '_share_on_pixelfed_status', true );
+
+			if ( '' === $custom_status && ! empty( $this->options['status_template'] ) ) {
+				// Default to the template as set on the options page.
+				$custom_status = $this->options['status_template'];
+			}
+			?>
+			<div style="margin-top: 1em;">
+				<label for="share_on_pixelfed_status"><?php esc_html_e( '(Optional) Message', 'share-on-pixelfed' ); ?></label>
+				<textarea id="share_on_pixelfed_status" name="share_on_pixelfed_status" rows="3" style="width: 100%; box-sizing: border-box; margin-top: 0.5em;"><?php echo esc_html( trim( $custom_status ) ); ?></textarea>
+				<p class="description" style="margin-top: 0.25em;"><?php esc_html_e( 'Customize this post&rsquo;s Pixelfed status.', 'share-on-pixelfed' ); ?></p>
+			</div>
+			<?php
+		endif;
+
+		$url = get_post_meta( $post->ID, '_share_on_pixelfed_url', true );
+
+		if ( '' !== $url && wp_http_validate_url( $url ) ) :
+			$url_parts = wp_parse_url( $url );
+
+			$display_url  = '<span class="screen-reader-text">' . $url_parts['scheme'] . '://';
+			$display_url .= ( ! empty( $url_parts['user'] ) ? $url_parts['user'] . ( ! empty( $url_parts['pass'] ) ? ':' . $url_parts['pass'] : '' ) . '@' : '' ) . '</span>';
+			$display_url .= '<span class="ellipsis">' . substr( $url_parts['host'] . $url_parts['path'], 0, 20 ) . '</span><span class="screen-reader-text">' . substr( $url_parts['host'] . $url_parts['path'], 20 ) . '</span>';
+			?>
+			<p class="description">
+				<?php /* translators: toot URL */ ?>
+				<?php printf( esc_html__( 'Shared at %s', 'share-on-pixelfed' ), '<a class="url" href="' . esc_url( $url ) . '">' . $display_url . '</a>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+				<?php /* translators: "unlink" link text */ ?>
+				<a href="#" class="unlink"><?php esc_html_e( 'Unlink', 'share-on-pixelfed' ); ?></a>
+			</p>
+			<?php
+		else :
+			$error_message = get_post_meta( $post->ID, '_share_on_pixelfed_error', true );
+
+			if ( '' !== $error_message ) :
+				?>
+				<p class="description"><i><?php echo esc_html( $error_message ); ?></i></p>
+				<?php
+			endif;
+		endif;
 	}
 
 	/**
@@ -496,14 +485,17 @@ class Post_Handler {
 			}
 
 			// Enqueue CSS and JS.
-			wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', dirname( __FILE__ ) ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
-			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
+			wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
+			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array( 'jquery' ), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
 			wp_localize_script(
 				'share-on-pixelfed',
 				'share_on_pixelfed_obj',
 				array(
-					'message' => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
-					'post_id' => $post->ID, // Pass current post ID to JS.
+					'message'             => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
+					'post_id'             => ! empty( $post->ID ) ? $post->ID : 0, // Pass current post ID to JS.
+					'nonce'               => wp_create_nonce( basename( __FILE__ ) ),
+					'ajaxurl'             => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+					'custom_status_field' => ! empty( $this->options['custom_status_field'] ) ? '1' : '0',
 				)
 			);
 		}
@@ -516,7 +508,7 @@ class Post_Handler {
 	 * @return bool          If the post should be shared.
 	 */
 	protected function is_valid( $post ) {
-		if ( 'publish' !== $post->post_status ) {
+		if ( empty( $post->post_status ) || 'publish' !== $post->post_status ) {
 			// Status is something other than `publish`.
 			return false;
 		}
@@ -616,8 +608,10 @@ class Post_Handler {
 	 * @return string       (Possibly shortened) excerpt.
 	 */
 	protected function get_excerpt( $post_id ) {
-		$orig    = get_the_excerpt( $post_id );
-		$excerpt = mb_substr( $orig, 0, 125 );
+		$orig    = apply_filters( 'the_excerpt', get_the_excerpt( $post_id ) );
+		$orig    = wp_strip_all_tags( $orig ); // Just in case a site owner's allowing HTML in their excerpts or something.
+		$orig    = html_entity_decode( $orig, ENT_QUOTES | ENT_HTML5, get_bloginfo( 'charset' ) ); // Prevent special characters from messing things up.
+		$excerpt = mb_substr( $orig, 0, apply_filters( 'share_on_pixelfed_excerpt_length', 125 ) );
 
 		if ( $excerpt !== $orig && ! ctype_punct( mb_substr( $excerpt, -1 ) ) ) {
 			$excerpt .= '…';
@@ -652,5 +646,56 @@ class Post_Handler {
 		}
 
 		return trim( $hashtags );
+	}
+
+
+	/**
+	 * Checks for a Mastodon instance and auth token.
+	 *
+	 * @since 0.17.1
+	 *
+	 * @return bool Whether auth access was set up okay.
+	 */
+	protected function setup_completed() {
+		if ( empty( $this->options['pixelfed_host'] ) ) {
+			return false;
+		}
+
+		if ( ! wp_http_validate_url( $this->options['pixelfed_host'] ) ) {
+			return false;
+		}
+
+		if ( empty( $this->options['pixelfed_access_token'] ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Checks whether the current request was initiated by the block editor.
+	 *
+	 * @return bool Whether the current request was initiated by the block editor.
+	 */
+	protected function is_gutenberg() {
+		if ( ! defined( 'REST_REQUEST' ) || ! REST_REQUEST ) {
+			// Not a REST request.
+			return false;
+		}
+
+		$nonce = null;
+
+		if ( isset( $_REQUEST['_wpnonce'] ) ) {
+			$nonce = $_REQUEST['_wpnonce']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		} elseif ( isset( $_SERVER['HTTP_X_WP_NONCE'] ) ) {
+			$nonce = $_SERVER['HTTP_X_WP_NONCE']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		}
+
+		if ( null === $nonce ) {
+			return false;
+		}
+
+		// Check the nonce.
+		return wp_verify_nonce( $nonce, 'wp_rest' );
 	}
 }

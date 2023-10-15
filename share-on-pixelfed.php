@@ -21,11 +21,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-require dirname( __FILE__ ) . '/includes/class-image-handler.php';
-require dirname( __FILE__ ) . '/includes/class-micropub-compat.php';
-require dirname( __FILE__ ) . '/includes/class-options-handler.php';
-require dirname( __FILE__ ) . '/includes/class-post-handler.php';
-require dirname( __FILE__ ) . '/includes/class-share-on-pixelfed.php';
-require dirname( __FILE__ ) . '/includes/class-syn-links-compat.php';
+require __DIR__ . '/includes/class-block-editor.php';
+require __DIR__ . '/includes/class-image-handler.php';
+require __DIR__ . '/includes/class-micropub-compat.php';
+require __DIR__ . '/includes/class-options-handler.php';
+require __DIR__ . '/includes/class-post-handler.php';
+require __DIR__ . '/includes/class-share-on-pixelfed.php';
+require __DIR__ . '/includes/class-syn-links-compat.php';
+require __DIR__ . '/includes/functions.php';
 
-Share_On_Pixelfed::get_instance()->register();
+Share_On_Pixelfed::get_instance()
+	->register();

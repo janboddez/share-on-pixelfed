@@ -12,37 +12,88 @@ namespace Share_On_Pixelfed;
  */
 class Options_Handler {
 	/**
-	 * Share on Pixelfed's default options.
-	 *
-	 * @since 0.7.0
-	 *
-	 * @var array Default plugin options.
+	 * Plugin option schema.
 	 */
-	const DEFAULT_PLUGIN_OPTIONS = array(
-		'pixelfed_host'          => '',
-		'pixelfed_client_id'     => '',
-		'pixelfed_client_secret' => '',
-		'pixelfed_access_token'  => '',
-		'pixelfed_refresh_token' => '',
-		'pixelfed_token_expiry'  => 0,
-		'post_types'             => array(),
-		'use_first_image'        => false,
-		'pixelfed_username'      => '',
-		'delay_sharing'          => 0,
-		'optin'                  => false,
-		'share_always'           => false,
-		'micropub_compat'        => false,
-		'syn_links_compat'       => false,
-		'custom_status_field'    => false,
-		'status_template'        => '%title% %permalink%',
+	const SCHEMA = array(
+		'pixelfed_host'          => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'pixelfed_client_id'     => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'pixelfed_client_secret' => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'pixelfed_access_token'  => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'pixelfed_refresh_token' => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'pixelfed_token_expiry'  => array(
+			'type'    => 'integer',
+			'default' => 0,
+		),
+		'pixelfed_username'      => array(
+			'type'    => 'string',
+			'default' => '',
+		),
+		'post_types'             => array(
+			'type'    => 'array',
+			'default' => array( 'post' ),
+			'items'   => array( 'type' => 'string' ),
+		),
+		'use_first_image'        => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'optin'                  => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'share_always'           => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'delay_sharing'          => array(
+			'type'    => 'integer',
+			'default' => 0,
+		),
+		'micropub_compat'        => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'syn_links_compat'       => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'debug_logging'          => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'custom_status_field'    => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
+		'status_template'        => array(
+			'type'    => 'string',
+			'default' => '%title% %permalink%',
+		),
+		'meta_box'               => array(
+			'type'    => 'boolean',
+			'default' => false,
+		),
 	);
 
 	/**
-	 * WordPress' default post types.
+	 * WordPress's default post types, minus "post" itself.
 	 *
 	 * @since 0.1.0
-	 *
-	 * @var array WordPress' default post types, minus 'post' itself.
 	 */
 	const DEFAULT_POST_TYPES = array(
 		'page',
@@ -53,19 +104,15 @@ class Options_Handler {
 	 * Plugin options.
 	 *
 	 * @since 0.1.0
-	 * @var   array $options Plugin options.
-	 */
-	private $options = array();
-
-	/**
-	 * Constructor.
-	 *
-	 * @since 0.1.0
 	 */
 	public function __construct() {
+		$options = get_option( 'share_on_pixelfed_settings' );
+
 		$this->options = array_merge(
-			self::DEFAULT_PLUGIN_OPTIONS,
-			get_option( 'share_on_pixelfed_settings', array() )
+			static::get_default_options(),
+			is_array( $options )
+				? $options
+				: array()
 		);
 	}
 
@@ -76,10 +123,11 @@ class Options_Handler {
 	 */
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'create_menu' ) );
-		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_refresh_token' ), 11 );
-		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_verify_token' ) );
-		add_action( 'admin_post_share_on_pixelfed', array( $this, 'admin_post' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+		add_action( 'admin_post_share_on_pixelfed', array( $this, 'admin_post' ) );
+
+		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_verify_token' ) );
+		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_refresh_token' ), 11 );
 	}
 
 	/**
@@ -104,9 +152,12 @@ class Options_Handler {
 	 * @since 0.1.0
 	 */
 	public function add_settings() {
-		add_option( 'share_on_pixelfed_settings', self::DEFAULT_PLUGIN_OPTIONS );
+		add_option( 'share_on_pixelfed_settings', $this->options );
 
-		$active_tab = $this->get_active_tab();
+		$schema = self::SCHEMA;
+		foreach ( $schema as &$row ) {
+			unset( $row['default'] );
+		}
 
 		register_setting(
 			'share-on-pixelfed-settings-group',
@@ -185,12 +236,21 @@ class Options_Handler {
 					'delay_sharing'       => isset( $settings['delay_sharing'] ) && ctype_digit( $settings['delay_sharing'] )
 						? (int) $settings['delay_sharing']
 						: 0,
+					'micropub_compat'     => isset( $settings['micropub_compat'] ) ? true : false,
+					'syn_links_compat'    => isset( $settings['syn_links_compat'] ) ? true : false,
 					'custom_status_field' => isset( $settings['custom_status_field'] ) ? true : false,
 					'status_template'     => isset( $settings['status_template'] ) && is_string( $settings['status_template'] )
 						? preg_replace( '~\R~u', "\r\n", sanitize_textarea_field( $settings['status_template'] ) )
 						: '',
-					'micropub_compat'     => isset( $settings['micropub_compat'] ) ? true : false,
-					'syn_links_compat'    => isset( $settings['syn_links_compat'] ) ? true : false,
+					'meta_box'            => isset( $settings['meta_box'] ) ? true : false,
+				);
+
+				// Updated settings.
+				return array_merge( $this->options, $options );
+
+			case 'debug':
+				$options = array(
+					'debug_logging' => isset( $settings['debug_logging'] ) ? true : false,
 				);
 
 				// Updated settings.
@@ -393,20 +453,26 @@ class Options_Handler {
 							<th scope="row"><label for="share_on_pixelfed_status_template"><?php esc_html_e( 'Status Template', 'share-on-pixelfed' ); ?></label></th>
 							<td><textarea name="share_on_pixelfed_settings[status_template]" id="share_on_pixelfed_status_template" rows="5" style="min-width: 33%;"><?php echo ! empty( $this->options['status_template'] ) ? esc_html( $this->options['status_template'] ) : ''; ?></textarea>
 							<?php /* translators: %s: supported template tags */ ?>
-							<p class="description"><?php printf( __( '(Experimental) Customize the default status template. Supported &ldquo;template tags&rdquo;: %s.', 'share-on-pixelfed' ), '<code>%title%</code>, <code>%excerpt%</code>, <code>%tags%</code>, <code>%permalink%</code>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p></td>
+							<p class="description"><?php printf( esc_html__( 'Customize the default status template. Supported &ldquo;template tags&rdquo;: %s.', 'share-on-pixelfed' ), '<code>%title%</code>, <code>%excerpt%</code>, <code>%tags%</code>, <code>%permalink%</code>' ); ?></p></td>
 						</tr>
 						<tr valign="top">
 							<th scope="row"><?php esc_html_e( 'Customize Status', 'share-on-pixelfed' ); ?></th>
 							<td><label><input type="checkbox" name="share_on_pixelfed_settings[custom_status_field]" value="1" <?php checked( ! empty( $this->options['custom_status_field'] ) ); ?> /> <?php esc_html_e( 'Allow customizing Pixelfed statuses', 'share-on-pixelfed' ); ?></label>
 								<?php /* translators: %s: link to the `share_on_pixelfed_status` documentation */ ?>
-							<p class="description"><?php printf( __( '(Experimental) Add a custom &ldquo;Message&rdquo; field to Share on Pixelfed&rsquo;s &ldquo;meta box.&rdquo; (For more fine-grained control, please have a look at the %s filter instead.)', 'share-on-pixelfed' ), '<a href="https://jan.boddez.net/wordpress/share-on-pixelfed#share_on_pixelfed_status" target="_blank" rel="noopener noreferrer"><code>share_on_pixelfed_status</code></a>' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></p></td>
+							<p class="description"><?php printf( esc_html__( 'Add a custom &ldquo;Message&rdquo; field to Share on Pixelfed&rsquo;s &ldquo;meta box.&rdquo; (For more fine-grained control, please have a look at the %s filter instead.)', 'share-on-pixelfed' ), '<a href="https://jan.boddez.net/wordpress/share-on-pixelfed#share_on_pixelfed_status" target="_blank" rel="noopener noreferrer"><code>share_on_pixelfed_status</code></a>' ); ?></p></td>
+						</tr>
+
+						<tr valign="top">
+							<th scope="row"><?php esc_html_e( 'Meta Box', 'share-on-pixelfed' ); ?></th>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[meta_box]" value="1" <?php checked( ! empty( $this->options['meta_box'] ) ); ?> /> <?php esc_html_e( 'Use &ldquo;classic&rdquo; meta box', 'share-on-pixelfed' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Replace Share on Pixelfed&rsquo;s &ldquo;block editor sidebar panel&rdquo; with a &ldquo;classic&rdquo; meta box (even for post types that use the block editor).', 'share-on-pixelfed' ); ?></p></td>
 						</tr>
 
 						<?php if ( class_exists( 'Micropub_Endpoint' ) ) : ?>
 							<tr valign="top">
 								<th scope="row"><?php esc_html_e( 'Micropub', 'share-on-pixelfed' ); ?></th>
 								<td><label><input type="checkbox" name="share_on_pixelfed_settings[micropub_compat]" value="1" <?php checked( ! empty( $this->options['micropub_compat'] ) ); ?> /> <?php esc_html_e( 'Add syndication target', 'share-on-pixelfed' ); ?></label>
-								<p class="description"><?php esc_html_e( '(Experimental) Add &ldquo;Pixelfed&rdquo; as a Micropub syndication target.', 'share-on-pixelfed' ); ?></p></td>
+								<p class="description"><?php esc_html_e( 'Add &ldquo;Pixelfed&rdquo; as a Micropub syndication target.', 'share-on-pixelfed' ); ?></p></td>
 							</tr>
 						<?php endif; ?>
 
@@ -426,6 +492,22 @@ class Options_Handler {
 
 			if ( 'debug' === $active_tab ) :
 				?>
+				<form method="post" action="options.php">
+					<?php
+					// Print nonces and such.
+					settings_fields( 'share-on-pixelfed-settings-group' );
+					?>
+					<table class="form-table">
+						<tr valign="top">
+							<th scope="row"><label for="share_on_pixelfed_settings[debug_logging]"><?php esc_html_e( 'Logging', 'share-on-pixelfed' ); ?></label></th>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[debug_logging]" value="1" <?php checked( ! empty( $this->options['debug_logging'] ) ); ?> /> <?php esc_html_e( 'Enable debug logging', 'share-on-pixelfed' ); ?></label>
+							<?php /* translators: %s: link to the official WordPress documentation */ ?>
+							<p class="description"><?php printf( esc_html__( 'You&rsquo;ll also need to set WordPress&rsquo; %s.', 'share-on-pixelfed' ), sprintf( '<a href="%1$s" target="_blank" rel="noopener noreferrer">%2$s</a>', 'https://wordpress.org/documentation/article/debugging-in-wordpress/#example-wp-config-php-for-debugging', esc_html__( 'debug logging constants', 'share-on-pixelfed' ) ) ); ?></p></td>
+						</tr>
+					</table>
+					<p class="submit"><?php submit_button( __( 'Save Changes' ), 'primary', 'submit', false ); ?></p>
+				</form>
+
 				<p style="margin: 1em 0 0.5em;"><?php esc_html_e( 'Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens!', 'share-on-pixelfed' ); ?></p>
 				<p>
 					<?php
@@ -471,7 +553,7 @@ class Options_Handler {
 		}
 
 		// Enqueue JS.
-		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', dirname( __FILE__ ) ), array( 'jquery' ), Share_On_Pixelfed::PLUGIN_VERSION, true );
+		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array( 'jquery' ), Share_On_Pixelfed::PLUGIN_VERSION, true );
 		wp_localize_script(
 			'share-on-pixelfed',
 			'share_on_pixelfed_obj',
@@ -510,7 +592,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return;
 		}
 
@@ -523,7 +605,7 @@ class Options_Handler {
 
 			update_option( 'share_on_pixelfed_settings', $this->options );
 		} else {
-			error_log( '[Share on Pixelfed] Could not register new client. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] Could not register new client. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 	}
 
@@ -559,7 +641,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] Authorization failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] Authorization failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -577,7 +659,7 @@ class Options_Handler {
 				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
 			}
 
-			error_log( '[Share on Pixelfed] Authorization successful.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( '[Share on Pixelfed] Authorization successful.' );
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			$this->cron_verify_token(); // In order to get and store a username.
@@ -587,8 +669,8 @@ class Options_Handler {
 
 			return true;
 		} else {
-			error_log( '[Share on Pixelfed] Authorization failed.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] Authorization failed.' );
+			debug_log( $response );
 		}
 
 		return false;
@@ -619,7 +701,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( '[Share on Pixelfed] Token refresh failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] Token refresh failed. ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return false;
 		}
 
@@ -637,12 +719,12 @@ class Options_Handler {
 				$this->options['pixelfed_token_expiry'] = time() + (int) $token->expires_in;
 			}
 
-			error_log( '[Share on Pixelfed] Token refresh successful, or token not up for renewal, yet.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( '[Share on Pixelfed] Token refresh successful, or token not up for renewal, yet.' );
 			update_option( 'share_on_pixelfed_settings', $this->options );
 
 			return true;
 		} else {
-			error_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_print_r
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
 		return false;
@@ -696,7 +778,7 @@ class Options_Handler {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return;
 		}
 
@@ -719,7 +801,7 @@ class Options_Handler {
 				update_option( 'share_on_pixelfed_settings', $this->options );
 			}
 		} else {
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 	}
 
@@ -746,11 +828,11 @@ class Options_Handler {
 	public function admin_post() {
 		if ( isset( $_GET['refresh-token'] ) && 'true' === $_GET['refresh-token'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-refresh-token' ) ) {
 			// Token refresh request.
-			error_log( '[Share on Pixelfed] ' . __( 'Attempting to refresh access token.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( '[Share on Pixelfed] ' . __( 'Attempting to refresh access token.', 'share-on-pixelfed' ) );
 			$this->refresh_access_token();
 		} elseif ( isset( $_GET['reset'] ) && 'true' === $_GET['reset'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-reset' ) ) {
 			// Reset all of this plugin's settings.
-			error_log( '[Share on Pixelfed] ' . __( 'Clearing all plugin settings.', 'share-on-pixelfed' ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( '[Share on Pixelfed] ' . __( 'Clearing all plugin settings.', 'share-on-pixelfed' ) );
 			$this->reset_options();
 		}
 
@@ -776,6 +858,15 @@ class Options_Handler {
 	 */
 	public function get_options() {
 		return $this->options;
+	}
+
+	/**
+	 * Returns the plugin's default options.
+	 *
+	 * @return array Default options.
+	 */
+	public static function get_default_options() {
+		return array_combine( array_keys( self::SCHEMA ), array_column( self::SCHEMA, 'default' ) );
 	}
 
 	/**

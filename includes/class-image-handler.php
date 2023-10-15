@@ -18,9 +18,7 @@ class Image_Handler {
 	 * @return array         Array with the image ID as its first element and the image's alt text as its second element.
 	 */
 	public static function get_image( $post ) {
-		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
-			->get_options_handler()
-			->get_options();
+		$options = get_options();
 
 		$thumb_id = 0;
 
@@ -107,16 +105,16 @@ class Image_Handler {
 		$body = '--' . $boundary . $eol;
 
 		if ( '' !== $alt ) {
-			error_log( "[Share on Pixelfed] Found the following alt text for the attachment with ID $thumb_id: $alt" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( "[Share on Pixelfed] Found the following alt text for the attachment with ID $thumb_id: $alt" );
 
 			// Send along an image description, because accessibility.
 			$body .= 'Content-Disposition: form-data; name="description";' . $eol . $eol;
 			$body .= $alt . $eol;
 			$body .= '--' . $boundary . $eol;
 
-			error_log( "[Share on Pixelfed] Here's the `alt` bit of what we're about to send the Pixelfed API: `$body`" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( "[Share on Pixelfed] Here's the `alt` bit of what we're about to send the Pixelfed API: `$body`" );
 		} else {
-			error_log( "[Share on Pixelfed] Did not find alt text for the attachment with ID $thumb_id" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			debug_log( "[Share on Pixelfed] Did not find alt text for the attachment with ID $thumb_id" );
 		}
 
 		// The actual (binary) image data.
@@ -125,9 +123,7 @@ class Image_Handler {
 		$body .= file_get_contents( $file_path ) . $eol; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 		$body .= '--' . $boundary . '--';
 
-		$options = \Share_On_Pixelfed\Share_On_Pixelfed::get_instance()
-			->get_options_handler()
-			->get_options();
+		$options = get_options();
 
 		$response = wp_remote_post(
 			esc_url_raw( $options['pixelfed_host'] . '/api/v1/media' ),
@@ -144,7 +140,7 @@ class Image_Handler {
 
 		if ( is_wp_error( $response ) ) {
 			// An error occurred.
-			error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 			return;
 		}
 
@@ -158,7 +154,7 @@ class Image_Handler {
 
 		// Provided debugging's enabled, let's store the (somehow faulty)
 		// response.
-		error_log( print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions
+		debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 	}
 
 	/**
@@ -187,7 +183,7 @@ class Image_Handler {
 			$url = str_replace( $filename, $original, $match );
 
 			// Convert URL back to attachment ID.
-			$thumb_id = (int) attachment_url_to_postid( $url );
+			$thumb_id = attachment_url_to_postid( $url );
 
 			if ( 0 === $thumb_id ) {
 				// Unknown to WordPress.
