@@ -14,8 +14,11 @@ jQuery( document ).ready( function ( $ ) {
 		};
 
 		$.post( ajaxurl, data, function( response ) {
-			// On success, untick the checkbox, and remove the link (and the `button` with it).
-			$( 'input[name="share_on_pixelfed"]' ).prop( 'checked', false );
+			if ( 'undefined' !== typeof wp && 'undefined' !== typeof wp.blocks ) {
+				// Uncheck only within a block editor context.
+				$( 'input[name="share_on_pixelfed"]' ).prop( 'checked', false );
+			}
+
 			button.closest( '.description' ).remove();
 		} );
 	} );
