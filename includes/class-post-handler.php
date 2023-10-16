@@ -456,8 +456,14 @@ class Post_Handler {
 		}
 
 		// Have WordPress forget the Pixelfed URL.
-		if ( '' !== get_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url', true ) ) {
-			delete_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url' );
+		delete_post_meta( $post_id, '_share_on_pixelfed_url' );
+
+		$options = get_options();
+
+		if ( ! empty( $options['meta_box'] ) && use_block_editor_for_post( $post_id ) ) {
+			// Delete the checkbox value, too, to prevent Gutenberg's' odd meta
+			// box behavior from triggering an immediate re-share.
+			delete_post_meta( $post_id, '_share_on_pixelfed' );
 		}
 
 		wp_die();
