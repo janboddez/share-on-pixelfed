@@ -427,17 +427,17 @@ class Options_Handler {
 					?>
 					<table class="form-table">
 						<tr valign="top">
+							<th scope="row"><label for="share_on_pixelfed_settings[delay_sharing]"><?php esc_html_e( 'Delayed Sharing', 'share-on-pixelfed' ); ?></label></th>
+							<td><input type="number" style="width: 6em;" id="share_on_pixelfed_settings[delay_sharing]" name="share_on_pixelfed_settings[delay_sharing]" value="<?php echo esc_attr( isset( $this->options['delay_sharing'] ) ? $this->options['delay_sharing'] : 0 ); ?>" />
+							<p class="description"><?php esc_html_e( 'The time, in seconds, WordPress should delay sharing after a post is first published. (Setting this to, e.g., &ldquo;300&rdquo;&mdash;that&rsquo;s 5 minutes&mdash;may resolve issues with image uploads.)', 'share-on-pixelfed' ); ?></p></td>
+						</tr>
+						<tr valign="top">
 							<th scope="row"><?php esc_html_e( 'Image Choice', 'share-on-pixelfed' ); ?></th>
 							<td><ul style="list-style: none; margin-top: 4px;">
 								<li><label><input type="radio" name="share_on_pixelfed_settings[use_first_image]" value="0" <?php checked( empty( $this->options['use_first_image'] ) ); ?>><?php esc_html_e( 'Featured', 'share-on-pixelfed' ); ?></label></li>
 								<li><label><input type="radio" name="share_on_pixelfed_settings[use_first_image]" value="1" <?php checked( ! empty( $this->options['use_first_image'] ) ); ?>><?php esc_html_e( 'First', 'share-on-pixelfed' ); ?></label></li>
 							</ul>
 							<p class="description"><?php esc_html_e( 'Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)', 'share-on-pixelfed' ); ?></p></td>
-						</tr>
-						<tr valign="top">
-							<th scope="row"><label for="share_on_pixelfed_settings[delay_sharing]"><?php esc_html_e( 'Delayed Sharing', 'share-on-pixelfed' ); ?></label></th>
-							<td><input type="number" style="width: 6em;" id="share_on_pixelfed_settings[delay_sharing]" name="share_on_pixelfed_settings[delay_sharing]" value="<?php echo esc_attr( isset( $this->options['delay_sharing'] ) ? $this->options['delay_sharing'] : 0 ); ?>" />
-							<p class="description"><?php esc_html_e( 'The time, in seconds, WordPress should delay sharing after a post is first published. (Setting this to, e.g., &ldquo;300&rdquo;&mdash;that&rsquo;s 5 minutes&mdash;may resolve issues with image uploads.)', 'share-on-pixelfed' ); ?></p></td>
 						</tr>
 						<tr valign="top">
 							<th scope="row"><?php esc_html_e( 'Opt-In', 'share-on-pixelfed' ); ?></th>
@@ -508,7 +508,7 @@ class Options_Handler {
 					<p class="submit"><?php submit_button( __( 'Save Changes' ), 'primary', 'submit', false ); ?></p>
 				</form>
 
-				<p style="margin: 1em 0 0.5em;"><?php esc_html_e( 'Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens!', 'share-on-pixelfed' ); ?></p>
+				<p style="margin: 1em 0 0.5em;"><?php esc_html_e( 'Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens! (You can, however, still invalidate them on your instance&rsquo;s &ldquo;Profile > Settings > Applications&rdquo; page.))', 'share-on-pixelfed' ); ?></p>
 				<p>
 					<?php
 					printf(
@@ -553,7 +553,7 @@ class Options_Handler {
 		}
 
 		// Enqueue JS.
-		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array( 'jquery' ), Share_On_Pixelfed::PLUGIN_VERSION, true );
+		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array(), Share_On_Pixelfed::PLUGIN_VERSION, true );
 		wp_localize_script(
 			'share-on-pixelfed',
 			'share_on_pixelfed_obj',
@@ -724,6 +724,15 @@ class Options_Handler {
 
 			return true;
 		} else {
+			if ( in_array( wp_remote_retrieve_response_code( $response ), array( 401, 403 ), true ) ) {
+				// The current access token has somehow become invalid. Forget it.
+				$this->options['pixelfed_access_token']  = '';
+				$this->options['pixelfed_refresh_token'] = '';
+				$this->options['pixelfed_token_expiry']  = '';
+
+				update_option( 'share_on_pixelfed_settings', $this->options );
+			}
+
 			debug_log( '[Share on Pixelfed] ' . print_r( $response, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 		}
 
@@ -787,7 +796,9 @@ class Options_Handler {
 			$this->options['pixelfed_access_token']  = '';
 			$this->options['pixelfed_refresh_token'] = '';
 			$this->options['pixelfed_token_expiry']  = '';
+
 			update_option( 'share_on_pixelfed_settings', $this->options );
+
 			return;
 		}
 

@@ -455,9 +455,15 @@ class Post_Handler {
 			wp_die();
 		}
 
+		$post_id = (int) $_POST['post_id'];
+
 		// Have WordPress forget the Pixelfed URL.
-		if ( '' !== get_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url', true ) ) {
-			delete_post_meta( intval( $_POST['post_id'] ), '_share_on_pixelfed_url' );
+		delete_post_meta( $post_id, '_share_on_pixelfed_url' );
+
+		if ( ! empty( $_POST['is_gutenberg'] ) ) {
+			// Delete the checkbox value, too, to prevent Gutenberg's' odd meta
+			// box behavior from triggering an immediate re-share.
+			delete_post_meta( $post_id, '_share_on_pixelfed' );
 		}
 
 		wp_die();
@@ -486,7 +492,7 @@ class Post_Handler {
 
 			// Enqueue CSS and JS.
 			wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
-			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array( 'jquery' ), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
+			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
 			wp_localize_script(
 				'share-on-pixelfed',
 				'share_on_pixelfed_obj',
