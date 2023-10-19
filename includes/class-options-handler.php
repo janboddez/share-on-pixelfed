@@ -441,7 +441,7 @@ class Options_Handler {
 						</tr>
 						<tr valign="top">
 							<th scope="row"><?php esc_html_e( 'Opt-In', 'share-on-pixelfed' ); ?></th>
-							<td><label><input type="checkbox" name="share_on_pixelfed_settings[optin]" value="1" <?php checked( ! empty( $this->options['optin'] ) ); ?> /> <?php esc_html_e( 'Make syndication opt-in rather than opt-out', 'share-on-pixelfed' ); ?></label></td>
+							<td><label><input type="checkbox" name="share_on_pixelfed_settings[optin]" value="1" <?php checked( ! empty( $this->options['optin'] ) ); ?> /> <?php esc_html_e( 'Make sharing opt-in rather than opt-out', 'share-on-pixelfed' ); ?></label></td>
 						</tr>
 						<tr valign="top">
 							<th scope="row"><?php esc_html_e( 'Share Always', 'share-on-pixelfed' ); ?></th>
