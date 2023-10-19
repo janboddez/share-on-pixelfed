@@ -12,10 +12,7 @@ class Test_Options_Handler extends \WP_Mock\Tools\TestCase {
 	public function test_options_handler_register() {
 		\WP_Mock::userFunction( 'get_option', array(
 			'times'  => 1,
-			'args'   => array(
-				'share_on_pixelfed_settings',
-				array(),
-			),
+			'args'   => array( 'share_on_pixelfed_settings' ),
 			'return' => array(),
 		) );
 
