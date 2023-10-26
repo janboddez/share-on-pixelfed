@@ -477,34 +477,37 @@ class Post_Handler {
 	 * @param string $hook_suffix Current WP Admin page.
 	 */
 	public function enqueue_scripts( $hook_suffix ) {
-		if ( in_array( $hook_suffix, array( 'post-new.php', 'post.php' ), true ) ) {
-			global $post;
-
-			if ( empty( $post ) ) {
-				// Can't do much without a `$post` object.
-				return;
-			}
-
-			if ( ! in_array( $post->post_type, (array) $this->options['post_types'], true ) ) {
-				// Unsupported post type.
-				return;
-			}
-
-			// Enqueue CSS and JS.
-			wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
-			wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
-			wp_localize_script(
-				'share-on-pixelfed',
-				'share_on_pixelfed_obj',
-				array(
-					'message'             => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
-					'post_id'             => ! empty( $post->ID ) ? $post->ID : 0, // Pass current post ID to JS.
-					'nonce'               => wp_create_nonce( basename( __FILE__ ) ),
-					'ajaxurl'             => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
-					'custom_status_field' => ! empty( $this->options['custom_status_field'] ) ? '1' : '0',
-				)
-			);
+		if ( 'post-new.php' !== $hook_suffix && 'post.php' !== $hook_suffix ) {
+			// Not an "Edit Post" screen.
+			return;
 		}
+
+		if ( empty( $this->options['post_types'] ) ) {
+			return;
+		}
+
+		$current_screen = get_current_screen();
+		if ( ( isset( $current_screen->post_type ) && ! in_array( $current_screen->post_type, $this->options['post_types'], true ) ) ) {
+			// Only load JS for actually supported post types.
+			return;
+		}
+
+		global $post;
+
+		// Enqueue CSS and JS.
+		wp_enqueue_style( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.css', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION );
+		wp_enqueue_script( 'share-on-pixelfed', plugins_url( '/assets/share-on-pixelfed.js', __DIR__ ), array(), \Share_On_Pixelfed\Share_On_Pixelfed::PLUGIN_VERSION, false );
+		wp_localize_script(
+			'share-on-pixelfed',
+			'share_on_pixelfed_obj',
+			array(
+				'message'             => esc_attr__( 'Forget this URL?', 'share-on-pixelfed' ), // Confirmation message.
+				'post_id'             => ! empty( $post->ID ) ? $post->ID : 0, // Pass current post ID to JS.
+				'nonce'               => wp_create_nonce( basename( __FILE__ ) ),
+				'ajaxurl'             => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+				'custom_status_field' => ! empty( $this->options['custom_status_field'] ) ? '1' : '0',
+			)
+		);
 	}
 
 	/**
