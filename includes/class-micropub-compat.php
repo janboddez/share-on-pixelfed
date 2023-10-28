@@ -73,7 +73,7 @@ class Micropub_Compat {
 			if ( 'publish' === $post->post_status ) {
 				// Trigger syndication.
 				$post_handler = $plugin->get_post_handler();
-				$post_handler->toot( 'publish', 'publish', $post );
+				$post_handler->toot( $post );
 			}
 		}
 	}
