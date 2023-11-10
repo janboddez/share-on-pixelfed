@@ -2,24 +2,26 @@
 # This file is distributed under the GNU General Public License v3.
 msgid ""
 msgstr ""
-"Project-Id-Version: Share on Pixelfed 0.7.0\n"
+"Project-Id-Version: Share on Pixelfed 0.9.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/share-on-pixelfed\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2023-02-11T13:29:56+00:00\n"
+"POT-Creation-Date: 2023-11-10T22:18:11+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.6.0\n"
+"X-Generator: WP-CLI 2.8.1\n"
 "X-Domain: share-on-pixelfed\n"
 
 #. Plugin Name of the plugin
-#: includes/class-options-handler.php:90
-#: includes/class-options-handler.php:91
-#: includes/class-options-handler.php:210
-#: includes/class-post-handler.php:86
-#: includes/class-post-handler.php:112
+#: includes/class-options-handler.php:149
+#: includes/class-options-handler.php:150
+#: includes/class-options-handler.php:279
+#: includes/class-post-handler.php:358
+#: includes/class-post-handler.php:385
+#: assets/block-editor.js:163
+#: assets/block-editor.js:166
 msgid "Share on Pixelfed"
 msgstr ""
 
@@ -35,198 +37,261 @@ msgstr ""
 msgid "https://janboddez.tech/"
 msgstr ""
 
-#: includes/class-options-handler.php:168
+#: includes/class-options-handler.php:232
 msgid "Please provide a valid URL."
 msgstr ""
 
-#: includes/class-options-handler.php:213
+#: includes/class-options-handler.php:282
 msgid "Setup"
 msgstr ""
 
-#: includes/class-options-handler.php:214
+#: includes/class-options-handler.php:283
 msgid "Advanced"
 msgstr ""
 
-#: includes/class-options-handler.php:215
+#: includes/class-options-handler.php:284
 msgid "Debugging"
 msgstr ""
 
-#: includes/class-options-handler.php:230
+#: includes/class-options-handler.php:299
 msgid "Instance"
 msgstr ""
 
-#: includes/class-options-handler.php:232
+#: includes/class-options-handler.php:301
 msgid "Your Pixelfed instance&rsquo;s URL."
 msgstr ""
 
-#: includes/class-options-handler.php:235
+#: includes/class-options-handler.php:304
 msgid "Supported Post Types"
 msgstr ""
 
-#: includes/class-options-handler.php:246
+#: includes/class-options-handler.php:315
 msgid "Post types for which sharing to Pixelfed is possible. (Sharing can still be disabled on a per-post basis.)"
 msgstr ""
 
-#: includes/class-options-handler.php:252
-#: includes/class-options-handler.php:299
+#: includes/class-options-handler.php:321
+#: includes/class-options-handler.php:368
 msgid "Authorize Access"
 msgstr ""
 
-#: includes/class-options-handler.php:268
+#: includes/class-options-handler.php:337
 msgid "Access granted!"
 msgstr ""
 
-#: includes/class-options-handler.php:298
+#: includes/class-options-handler.php:367
 msgid "Authorize WordPress to read and write to your Pixelfed timeline in order to enable crossposting."
 msgstr ""
 
-#: includes/class-options-handler.php:305
+#: includes/class-options-handler.php:374
 msgid "You&rsquo;ve authorized WordPress to read and write to your Pixelfed timeline."
 msgstr ""
 
-#: includes/class-options-handler.php:306
+#: includes/class-options-handler.php:375
 msgid "Access tokens are refreshed automatically, but a manual refresh is possible, too."
 msgstr ""
 
-#: includes/class-options-handler.php:322
+#: includes/class-options-handler.php:391
 msgid "Forget access token"
 msgstr ""
 
-#: includes/class-options-handler.php:341
+#: includes/class-options-handler.php:410
 msgid "Refresh Token"
 msgstr ""
 
-#: includes/class-options-handler.php:350
+#: includes/class-options-handler.php:419
 msgid "Something went wrong contacting your Pixelfed instance. Please reload this page to try again."
 msgstr ""
 
-#: includes/class-options-handler.php:356
+#: includes/class-options-handler.php:425
 msgid "Please fill out and save your Pixelfed instance&rsquo;s URL first."
 msgstr ""
 
-#: includes/class-options-handler.php:370
-msgid "Image Choice"
-msgstr ""
-
-#: includes/class-options-handler.php:372
-msgid "Featured"
-msgstr ""
-
-#: includes/class-options-handler.php:373
-msgid "First"
-msgstr ""
-
-#: includes/class-options-handler.php:375
-msgid "Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)"
-msgstr ""
-
-#: includes/class-options-handler.php:378
+#: includes/class-options-handler.php:439
 msgid "Delayed Sharing"
 msgstr ""
 
-#: includes/class-options-handler.php:380
+#: includes/class-options-handler.php:441
 msgid "The time, in seconds, WordPress should delay sharing after a post is first published. (Setting this to, e.g., &ldquo;300&rdquo;&mdash;that&rsquo;s 5 minutes&mdash;may resolve issues with image uploads.)"
 msgstr ""
 
-#: includes/class-options-handler.php:383
+#: includes/class-options-handler.php:444
+msgid "Image Choice"
+msgstr ""
+
+#: includes/class-options-handler.php:446
+msgid "Featured"
+msgstr ""
+
+#: includes/class-options-handler.php:447
+msgid "First"
+msgstr ""
+
+#: includes/class-options-handler.php:449
+msgid "Share either the post&rsquo;s Featured Image or the first image inside the post content. (Posts for which the chosen image type does not exist, will not be shared.)"
+msgstr ""
+
+#: includes/class-options-handler.php:452
 msgid "Opt-In"
 msgstr ""
 
-#: includes/class-options-handler.php:384
-msgid "Make syndication opt-in rather than opt-out"
+#: includes/class-options-handler.php:453
+msgid "Make sharing opt-in rather than opt-out"
 msgstr ""
 
-#: includes/class-options-handler.php:387
+#: includes/class-options-handler.php:456
 msgid "Share Always"
 msgstr ""
 
-#: includes/class-options-handler.php:388
+#: includes/class-options-handler.php:457
 msgid "Always syndicate to Pixelfed"
 msgstr ""
 
 #. translators: %s: link to the `share_on_pixelfed_enabled` documentation
-#: includes/class-options-handler.php:390
+#: includes/class-options-handler.php:459
 msgid " &ldquo;Force&rdquo; syndication, like when posting from a mobile app. For more fine-grained control, have a look at the %s filter hook."
 msgstr ""
 
-#: includes/class-options-handler.php:395
+#: includes/class-options-handler.php:462
+msgid "Status Template"
+msgstr ""
+
+#. translators: %s: supported template tags
+#: includes/class-options-handler.php:465
+msgid "Customize the default status template. Supported &ldquo;template tags&rdquo;: %s."
+msgstr ""
+
+#: includes/class-options-handler.php:468
+msgid "Customize Status"
+msgstr ""
+
+#: includes/class-options-handler.php:469
+msgid "Allow customizing Pixelfed statuses"
+msgstr ""
+
+#. translators: %s: link to the `share_on_pixelfed_status` documentation
+#: includes/class-options-handler.php:471
+msgid "Add a custom &ldquo;Message&rdquo; field to Share on Pixelfed&rsquo;s &ldquo;meta box.&rdquo; (For more fine-grained control, please have a look at the %s filter instead.)"
+msgstr ""
+
+#: includes/class-options-handler.php:475
+msgid "Meta Box"
+msgstr ""
+
+#: includes/class-options-handler.php:476
+msgid "Use &ldquo;classic&rdquo; meta box"
+msgstr ""
+
+#: includes/class-options-handler.php:477
+msgid "Replace Share on Pixelfed&rsquo;s &ldquo;block editor sidebar panel&rdquo; with a &ldquo;classic&rdquo; meta box (even for post types that use the block editor)."
+msgstr ""
+
+#: includes/class-options-handler.php:482
 msgid "Micropub"
 msgstr ""
 
-#: includes/class-options-handler.php:396
+#: includes/class-options-handler.php:483
 msgid "Add syndication target"
 msgstr ""
 
-#: includes/class-options-handler.php:397
-msgid "(Experimental) Add &ldquo;Pixelfed&rdquo; as a Micropub syndication target."
+#: includes/class-options-handler.php:484
+msgid "Add &ldquo;Pixelfed&rdquo; as a Micropub syndication target."
 msgstr ""
 
-#: includes/class-options-handler.php:403
+#: includes/class-options-handler.php:490
 msgid "Syndication Links"
 msgstr ""
 
-#: includes/class-options-handler.php:404
+#: includes/class-options-handler.php:491
 msgid "Add Pixelfed URLs to syndication links"
 msgstr ""
 
-#: includes/class-options-handler.php:405
+#: includes/class-options-handler.php:492
 msgid "(Experimental) Add Pixelfed URLs to Syndication Links&rsquo; list of syndication links."
 msgstr ""
 
-#: includes/class-options-handler.php:417
-msgid "Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens!"
+#: includes/class-options-handler.php:511
+msgid "Logging"
 msgstr ""
 
-#: includes/class-options-handler.php:432
+#: includes/class-options-handler.php:512
+msgid "Enable debug logging"
+msgstr ""
+
+#. translators: %s: link to the official WordPress documentation
+#: includes/class-options-handler.php:514
+msgid "You&rsquo;ll also need to set WordPress&rsquo; %s."
+msgstr ""
+
+#. translators: %s: link to the official WordPress documentation
+#: includes/class-options-handler.php:514
+msgid "debug logging constants"
+msgstr ""
+
+#: includes/class-options-handler.php:520
+msgid "Just in case, below button lets you delete all of Share on Pixelfed&rsquo;s settings. Note: This in itself will not invalidate previously issued tokens! (You can, however, still invalidate them on your instance&rsquo;s &ldquo;Profile > Settings > Applications&rdquo; page.))"
+msgstr ""
+
+#: includes/class-options-handler.php:535
 msgid "Reset Settings"
 msgstr ""
 
-#: includes/class-options-handler.php:439
+#: includes/class-options-handler.php:542
 msgid "Below information is not meant to be shared with anyone but may help when troubleshooting issues."
 msgstr ""
 
-#: includes/class-options-handler.php:466
+#: includes/class-options-handler.php:569
 msgid "Are you sure you want to reset all settings?"
 msgstr ""
 
-#: includes/class-options-handler.php:737
+#: includes/class-options-handler.php:851
 msgid "Attempting to refresh access token."
 msgstr ""
 
-#: includes/class-options-handler.php:741
+#: includes/class-options-handler.php:855
 msgid "Clearing all plugin settings."
 msgstr ""
 
+#: includes/class-post-handler.php:398
+msgid "(Optional) Message"
+msgstr ""
+
+#: includes/class-post-handler.php:400
+msgid "Customize this post&rsquo;s Pixelfed status."
+msgstr ""
+
 #. translators: toot URL
-#: includes/class-post-handler.php:126
+#: includes/class-post-handler.php:416
+#: assets/block-editor.js:188
 msgid "Shared at %s"
 msgstr ""
 
 #. translators: "unlink" link text
-#: includes/class-post-handler.php:128
+#: includes/class-post-handler.php:418
+#: assets/block-editor.js:202
 msgid "Unlink"
 msgstr ""
 
-#: includes/class-post-handler.php:144
-msgid "(Optional) Message"
-msgstr ""
-
-#: includes/class-post-handler.php:146
-msgid "Customize this post&rsquo;s Pixelfed status."
-msgstr ""
-
-#: includes/class-post-handler.php:401
+#: includes/class-post-handler.php:442
 msgid "Missing or invalid nonce."
 msgstr ""
 
-#: includes/class-post-handler.php:407
+#: includes/class-post-handler.php:448
 msgid "Missing or incorrect post ID."
 msgstr ""
 
-#: includes/class-post-handler.php:413
+#: includes/class-post-handler.php:454
 msgid "Insufficient rights."
 msgstr ""
 
-#: includes/class-post-handler.php:453
+#: includes/class-post-handler.php:504
+#: assets/block-editor.js:197
 msgid "Forget this URL?"
+msgstr ""
+
+#: assets/block-editor.js:175
+msgid "(Optional) Custom Message"
+msgstr ""
+
+#: assets/block-editor.js:182
+msgid "Customize this post’s Pixelfed status."
 msgstr ""
