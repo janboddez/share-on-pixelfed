@@ -104,6 +104,15 @@ class Options_Handler {
 	 * Plugin options.
 	 *
 	 * @since 0.1.0
+	 *
+	 * @var array $options Plugin options.
+	 */
+	private $options = array();
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 0.1.0
 	 */
 	public function __construct() {
 		$options = get_option( 'share_on_pixelfed_settings' );
@@ -826,7 +835,7 @@ class Options_Handler {
 			return false;
 		}
 
-		$this->options = self::DEFAULT_PLUGIN_OPTIONS;
+		$this->options = static::get_default_options();
 
 		update_option( 'share_on_pixelfed_settings', $this->options );
 	}
