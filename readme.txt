@@ -11,18 +11,18 @@ Automatically share WordPress (image) posts on Pixelfed.
 == Description ==
 Automatically share WordPress posts on [Pixelfed](https://pixelfed.org/).
 
-You choose which Post Types are shared—though sharing can still be disabled on a per-post basis. Posts without a Featured Image will not be shared. (The plugin currently doesn't look for other images inside the post, that is.)
+You choose which post types are shared, though sharing can still be disabled on a per-post basis. (Posts without either a featured image or image content will not be shared.)
 
-Supports a number of filter hooks for developers, and is fully compatible with WordPress's new block editor.
+Supports both WordPress' block editor and the classic editor, custom post types, and more.
 
-More details can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
+More details can be found on [this plugin's web page](https://jan.boddez.net/wordpress/share-on-pixelfed).
 
 == Installation ==
-Alternatively, upload this plugin's ZIP file via the "Upload Plugin" button.
+Within WP Admin, visit Plugins > Add New and search for "share on pixelfed" to locate the plugin. (Alternatively, upload this plugin’s ZIP file via the “Upload Plugin” button.)
 
 After activation, head over to *Settings > Share on Pixelfed* to authorize WordPress to post to your Pixelfed account.
 
-More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
+More detailed instructions can be found on [this plugin's web page](https://jan.boddez.net/wordpress/share-on-pixelfed).
 
 == Changelog ==
 = 0.9.0 =
