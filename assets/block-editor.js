@@ -80,7 +80,7 @@
 			setError( response.error ?? '' );
 		} ).catch( function( error ) {
 			// The request timed out or otherwise failed.
-			console.debug( '[Share on Mastodon] "Get URL" request failed.' );
+			console.debug( '[Share on Pixelfed] "Get URL" request failed.' );
 		} );
 	};
 
