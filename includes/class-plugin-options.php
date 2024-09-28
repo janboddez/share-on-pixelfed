@@ -30,7 +30,7 @@ class Plugin_Options extends Options_Handler {
 		add_action( 'admin_menu', array( $this, 'create_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
 
-		add_action( 'admin_post_share_on_pixelfed', array( $this, 'reset_settings' ) );
+		add_action( 'admin_post_share_on_pixelfed', array( $this, 'admin_post' ) );
 
 		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_verify_token' ) );
 		add_action( 'share_on_pixelfed_refresh_token', array( $this, 'cron_refresh_token' ), 11 );
@@ -220,22 +220,15 @@ class Plugin_Options extends Options_Handler {
 
 					if ( ! empty( $this->options['pixelfed_client_id'] ) && ! empty( $this->options['pixelfed_client_secret'] ) ) {
 						// An app was successfully registered.
-						if ( ! empty( $_GET['code'] ) && empty( $this->options['pixelfed_access_token'] ) ) {
+						if ( ! empty( $_GET['code'] ) && empty( $this->options['pixelfed_access_token'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 							// Access token request. Skip if we've already got one.
-							if ( $this->request_user_token( wp_unslash( $_GET['code'] ) ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+							if ( $this->request_user_token( wp_unslash( $_GET['code'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 								?>
 								<div class="notice notice-success is-dismissible">
 									<p><?php esc_html_e( 'Access granted!', 'share-on-pixelfed' ); ?></p>
 								</div>
 								<?php
 							}
-						} elseif ( isset( $_GET['action'] ) && 'revoke' === $_GET['action'] && isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed-revoke' ) ) {
-							// Forget token(s).
-							$this->options['pixelfed_access_token']  = '';
-							$this->options['pixelfed_refresh_token'] = '';
-							$this->options['pixelfed_token_expiry']  = 0;
-
-							update_option( 'share_on_pixelfed_settings', $this->options );
 						}
 
 						if ( empty( $this->options['pixelfed_access_token'] ) ) {
@@ -272,14 +265,13 @@ class Plugin_Options extends Options_Handler {
 									esc_url(
 										add_query_arg(
 											array(
-												'page'     => 'share-on-pixelfed',
-												'action'   => 'revoke',
-												'_wpnonce' => wp_create_nonce( 'share-on-pixelfed-revoke' ),
+												'action'   => 'share_on_pixelfed',
+												'_wpnonce' => wp_create_nonce( 'share-on-pixelfed:tokens:forget' ),
 											),
-											admin_url( 'options-general.php' )
+											admin_url( 'admin-post.php' )
 										)
 									),
-									esc_html__( 'Forget access token', 'share-on-pixelfed' )
+									esc_html__( 'Forget Access Token', 'share-on-pixelfed' )
 								);
 								?>
 								<?php
@@ -448,7 +440,6 @@ class Plugin_Options extends Options_Handler {
 							add_query_arg(
 								array(
 									'action'   => 'share_on_pixelfed',
-									'reset'    => 'true',
 									'_wpnonce' => wp_create_nonce( 'share-on-pixelfed:settings:reset' ),
 								),
 								admin_url( 'admin-post.php' )
@@ -487,9 +478,9 @@ class Plugin_Options extends Options_Handler {
 	}
 
 	/**
-	 * Resets all plugin settings.
+	 * `admin-post.php` callback.
 	 */
-	public function reset_settings() {
+	public function admin_post() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You have insufficient permissions to access this page.', 'share-on-pixelfed' ) );
 		}
@@ -497,6 +488,15 @@ class Plugin_Options extends Options_Handler {
 		if ( isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed:settings:reset' ) ) {
 			// Reset all plugin settings.
 			$this->options = static::get_default_options();
+			$this->save();
+		}
+
+		if ( isset( $_GET['_wpnonce'] ) && wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ), 'share-on-pixelfed:tokens:forget' ) ) {
+			// Forget token(s).
+			$this->options['pixelfed_access_token']  = '';
+			$this->options['pixelfed_refresh_token'] = '';
+			$this->options['pixelfed_token_expiry']  = 0;
+
 			$this->save();
 		}
 
