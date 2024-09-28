@@ -25,6 +25,8 @@ require __DIR__ . '/includes/class-block-editor.php';
 require __DIR__ . '/includes/class-image-handler.php';
 require __DIR__ . '/includes/class-micropub-compat.php';
 require __DIR__ . '/includes/class-options-handler.php';
+require __DIR__ . '/includes/class-pixelfed-client.php';
+require __DIR__ . '/includes/class-plugin-options.php';
 require __DIR__ . '/includes/class-post-handler.php';
 require __DIR__ . '/includes/class-share-on-pixelfed.php';
 require __DIR__ . '/includes/class-syn-links-compat.php';
