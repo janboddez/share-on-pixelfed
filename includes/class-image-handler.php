@@ -80,7 +80,19 @@ class Image_Handler {
 		if ( ! empty( $image[0] ) && 0 === strpos( $image[0], $uploads['baseurl'] ) ) {
 			// Found a "large" thumbnail that lives on our own site (and not,
 			// e.g., a CDN).
-			$url = $image[0];
+
+			// Images are sometimes scaled during the upload, but you can add a filter to
+			// to replace the URL with the one pointing to the original image as follows:
+
+			// add_filter ('share_on_pixelfed_image_own_url', function($url, $id) {
+			//     return wp_get_original_image_url($id);
+			// }, 10, 2);
+
+			// Keep in mind that some pixelfed instances will also scale and compress the
+			// uploaded image, so this will only make sure that the best quality is uploaded
+			// to pixelfed, but won't prevent pixelfed from scaling and compressing the image.
+
+			$url = apply_filters ( 'share_on_pixelfed_image_own_url', $image[0], $thumb_id);
 		} else {
 			// Get the original image instead.
 			$url = wp_get_attachment_url( $thumb_id ); // Original image URL.
