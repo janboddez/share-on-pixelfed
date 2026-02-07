@@ -2,6 +2,7 @@
 /**
  * Plugin Name: Share on Pixelfed
  * Description: Easily share WordPress (image) posts on Pixelfed.
+ * Plugin URI:  https://jan.boddez.net/wordpress/share-on-pixelfed
  * Author:      Jan Boddez
  * Author URI:  https://janboddez.tech/
  * License:     GNU General Public License v3
