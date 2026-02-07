@@ -1,7 +1,7 @@
 === Share on Pixelfed ===
 Contributors: janboddez
-Tags: pixelfed, share, publicize, crosspost, fediverse
-Tested up to: 6.4
+Tags: pixelfed, share, crosspost, fediverse, adopt-me
+Tested up to: 6.9
 Stable tag: 0.9.0
 License: GNU General Public License v3.0
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -15,14 +15,14 @@ You choose which Post Types are shared—though sharing can still be disabled on
 
 Supports a number of filter hooks for developers, and is fully compatible with WordPress's new block editor.
 
-More details can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
+More details can be found on [this plugin's web page](https://jan.boddez.net/wordpress/share-on-pixelfed).
 
 == Installation ==
 Alternatively, upload this plugin's ZIP file via the "Upload Plugin" button.
 
 After activation, head over to *Settings > Share on Pixelfed* to authorize WordPress to post to your Pixelfed account.
 
-More detailed instructions can be found on [this plugin's GitHub page](https://github.com/janboddez/share-on-pixelfed).
+More detailed instructions can be found on [this plugin's web page](https://jan.boddez.net/wordpress/share-on-pixelfed).
 
 == Changelog ==
 = 0.9.0 =
